@@ -3,10 +3,10 @@ function [filename,metadata]=optic_flow_dots(varargin)
     %OPTIC_FLOW_DOTS    Generate optic flow movie files.
     %
     %   OPTIC_FLOW_DOTS generates an optic flow movie file that simulates
-    %   arbitrary translational and rotational motion of a camera through a
-    %   cloud of dots. Dots are only visible within a unit sphere that is
-    %   centered on and moves with the camera. This sphera has unit radius
-    %   (diameter of two).
+    %   an arbitrary translational and rotational motion of a camera
+    %   through a cloud of dots. Dots are only visible within a unit sphere
+    %   that is centered on and moves with the camera. This sphera has unit
+    %   radius (diameter of two).
     %
     %   The translation and rotation parameters can be constant throughout
     %   the video, or dynamically change from frame to frame. See the
@@ -75,7 +75,7 @@ function [filename,metadata]=optic_flow_dots(varargin)
     %   the frames from the file one-by-one, or all at once, or in any
     %   desired subset. Note, however, that this is only equivalent to
     %   creating the entire stack in one go when no or lossless
-    %   video-compression is used. So if perfect fidelity is desired, use
+    %   video compression is used. So if perfect fidelity is desired, use
     %   for example Archival (the default) instead of a profile with lossy
     %   compression such as MPEG-4. Call <a href="matlab:VideoWriter.getProfiles">VideoWriter.getProfiles</a> for a
     %   list of video profiles available on your system with descriptions.
@@ -98,7 +98,7 @@ function [filename,metadata]=optic_flow_dots(varargin)
     %   See also: VideoWriter, VideoWriter.getProfiles, VideoReader,
     %   getframe
 
-    %   Copyright 2019: Jacob Duijnhouwer, New BSD License (3-clause).
+    %   BSD 3-Clause License Copyright (c) 2019, Jacob Duijnhouwer
     
     p=inputParser;
     is_natural=@(x)isnumeric(x) && isreal(x) && all(rem(x,1)==0) && all(x>0);
