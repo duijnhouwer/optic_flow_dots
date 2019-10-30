@@ -4,11 +4,15 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
 %
 %   OPTIC_FLOW_DOTS generates an optic flow movie file that simulates
 %   arbitrary translational and rotational motions of a camera through a
-%   cube-shaped environment of dots. Only the dots within a sphere around
-%   the camera are visible. The purpose of this sphere is to keep dot
-%   density constant in any direction. As the camera moves, dots that cross
-%   a side of the cube are wrapped around and given a new random position
-%   in the opposite side.
+%   cube-shaped environment of dots. The sides of the dots have arbitrary
+%   length 2. Only the dots within a sphere centered on the camera are
+%   visible. The diameter of the sphere is also 2. The purpose of this
+%   sphere is to keep the dot density constant in any direction. As the
+%   camera moves, dots that cross a side of the cube are wrapped around. To
+%   prevent cyclical looping of the same dots, the wrapped dots are given
+%   fresh random coordinates for their non-wrapped dimensions. For example,
+%   if a dot drops out of the backside of the unit box (Z<-1), Z is
+%   incremented by 2 and X and Y are set to random values between -1 and 1.
 %
 %   The translation and rotation parameters can be constant throughout the
 %   video, or dynamically change from frame to frame. See the descriptions
@@ -20,8 +24,8 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
 %   on and off; and setting the limits of the dot enviroment to create, for
 %   example, groundplanes or fronto-parallel planes of dots.
 %
-%   Settings can be controlled using the following name,value pair
-%   arguments (default values in brackets):
+%   Settings are controlled using the following name,value pair arguments 
+%   (default values in brackets):
 %
 %       'win_widhei_px': Width and height of the video in pixels.
 %           [500 500]
@@ -162,7 +166,8 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
             open(vid_obj);
         end
     catch me
-        keyboard
+        disp('[optic_flow_dots] Could not open the videofile for writing. It may already be open somewhere. Try fclose(''all'') to close it.');
+        rethrow(me);
     end
     
     % Create the metadata
@@ -277,7 +282,7 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
         % and, of the dots that were not fine, only the offending
         % coordinates (so that they can be wrapped to the other side of the
         % box in the next step)
-        fine = repmat(~any(too_neg|too_pos),4,1);
+        fine = repmat(~any(too_neg|too_pos,1),4,1);
         dots_xyz(fine|too_neg|too_pos) = prewrap_xyz(fine|too_neg|too_pos);
         % Wrap the offending coordinates so that they are fine now
         dots_xyz(too_neg) = dots_xyz(too_neg)+2;
