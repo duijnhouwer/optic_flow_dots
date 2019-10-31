@@ -4,15 +4,17 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
 %
 %   OPTIC_FLOW_DOTS generates an optic flow movie file that simulates
 %   arbitrary translational and rotational motions of a camera through a
-%   cube-shaped environment of dots. The sides of the dots have arbitrary
+%   cube-shaped environment of dots. The sides of the cube have arbitrary
 %   length 2. Only the dots within a sphere centered on the camera are
 %   visible. The diameter of the sphere is also 2. The purpose of this
-%   sphere is to keep the dot density constant in any direction. As the
-%   camera moves, dots that cross a side of the cube are wrapped around. To
-%   prevent cyclical looping of the same dots, the wrapped dots are given
-%   fresh random coordinates for their non-wrapped dimensions. For example,
-%   if a dot drops out of the backside of the unit box (Z<-1), Z is
-%   incremented by 2 and X and Y are set to random values between -1 and 1.
+%   sphere is to keep the dot density constant in any direction.
+%
+%   As the camera moves, dots that cross a side of the cube are wrapped
+%   around. To prevent cyclical looping of the same dots, the wrapped dots
+%   are given fresh random coordinates for their non-wrapped dimensions.
+%   For example, if a dot drops out of the backside of the unit box (Z<-1),
+%   Z is incremented by 2 and X and Y are set to random values between -1
+%   and 1.
 %
 %   The translation and rotation parameters can be constant throughout the
 %   video, or dynamically change from frame to frame. See the descriptions
@@ -50,21 +52,22 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
 %           positive X, Y, and Z give right, up, and forward motion,
 %           respectively, in arbitrary units of length per frame. Must be a
 %           3-element column vector or a 3 x n_frames matrix with a column
-%           vector for each frame. The larger the values, the higher the
+%           vector with each frame. The larger the values, the higher the
 %           translation speed. Keep in mind that the entire dot environment
 %           has a radius of 1, so sensible values are typically (much)
 %           smaller than 1. [[0;0;0.05]]
-%       'rot_xyz': The camera rotation-axes. Format like trans_xyz. The
-%           length of this vector is irrelevant, it's the scalar rot_dpf
-%           (see below) that determines the rotation rate, i.e., [0;1;0]
-%           and [0;100;0] equivalently specify a vertical axes that can be
-%           used for sideways rotation of the camera. [[0;1;0]]
-%       'rot_dpf': The camera rotation-rate (in degrees per frame).
-%           Either be a scalar for constant rotation or a 1 x n_frames
-%           vector with variable rotation rates. Rotation follows the
-%           "righthand rule", meaning that for example a positive rot_dpf
-%           around a vertical axis that points up ([0;1;0]) makes the
-%           camera pan to the left. [0]
+%       'rot_xyz': The camera rotation-axes. Format like trans_xyz, i.e. a
+%           3x1 vector or a 3 x n_frames matrix. The length of this vector
+%           is irrelevant, it's the scalar rot_dpf (see below) that
+%           determines the rotation rate, i.e., [0;1;0] and [0;100;0]
+%           equivalently specify a vertical axes that can be used for
+%           sideways rotation of the camera. [[0;1;0]]
+%       'rot_dpf': The camera rotation-rate in degrees per frame. Either a
+%           scalar for constant rotation or a 1 x n_frames vector with
+%           variable rotation rates. Rotation follows the "righthand rule",
+%           meaning that, for example, a positive rot_dpf around a vertical
+%           axis that points up ([0;1;0]) makes the camera pan to the left.
+%           [0]
 %       'dot_life_fr': The number of frames until a dot's position is
 %           reset to a random location in the enviroment. A value of 2
 %           means that the dots take a single step before being
