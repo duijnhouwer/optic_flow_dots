@@ -1,4 +1,4 @@
-function [filename,metadata,n_visible]=optic_flow_dots(varargin)
+function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
     
 %OPTIC_FLOW_DOTS    Generate optic flow movie files.
 %
@@ -26,10 +26,10 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
 %   on and off; and setting the limits of the dot enviroment to create, for
 %   example, groundplanes or fronto-parallel planes of dots.
 %
-%   Settings are controlled using the following name,value pair arguments 
+%   Settings are controlled using the following NAME,VALUE pair arguments 
 %   (default values in brackets):
 %
-%       'win_widhei_px': Width and height of the video in pixels.
+%       'vid_widhei_px': Width and height of the video in pixels.
 %           [500 500]
 %       'back_rgb': Color of the background in red,green,blue values
 %           between 0 and 1 or a color character such as 'w' for white or
@@ -93,6 +93,10 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
 %   (to be able to exactly replicate it), and the date and start time of
 %   the simulation.
 %
+%   [~,~,n_plotted] = OPTIC_FLOW_DOTS(...) returns an 1 x n_frames vector
+%   of the number of dots plotted in each frame. The number of dots plotted
+%   likely exceeds the number of visible dots because of dot overlap.
+%
 %   I chose to make this function write to a video instead of outputting a
 %   4D matrix (width x height x 3(RGB) x n_frames) because saving the
 %   frames as a movie file on disk scales better to long and large field
@@ -101,7 +105,8 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
 %   subset. Note, however, that this is only equivalent to creating the
 %   entire stack in one go when no or lossless video compression is used.
 %   So if perfect fidelity is desired, use for example Archival (the
-%   default) instead of a profile with lossy compression such as MPEG-4.
+%   default) as the video profile instead of a one with lossy compression
+%   such as MPEG-4.
 %
 %   Examples:
 %
@@ -144,7 +149,7 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
     p.addOptional('x_range',[-1 1],@(x)is_within_unit_range(x));
     p.addOptional('y_range',[-1 1],@(x)is_within_unit_range(x));
     p.addOptional('z_range',[-1 1],@(x)is_within_unit_range(x));
-    p.addOptional('win_widhei_px',[600 600],@(x)is_natural(x) && numel(x)==2);
+    p.addOptional('vid_widhei_px',[600 600],@(x)is_natural(x) && numel(x)==2);
     p.addOptional('back_rgb','k',@(x)is_color(x));
     p.addOptional('erase',true,@(x)is_boolean(x));
     p.addOptional('dot_style',{'wo','MarkerSize',2,'MarkerFaceColor','w'});
@@ -207,7 +212,7 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
     fig=figure('Name', mfilename);
     fig.NumberTitle='off';
     fig.CloseRequestFcn=@(~,~,~)evalin('caller','figure_close_requested=true;');
-    fig.Position=[0 0 p.Results.win_widhei_px(:)'];
+    fig.Position=[0 0 p.Results.vid_widhei_px(:)'];
     fig.Units='pixels';
     fig.MenuBar='none';
     fig.Renderer='OpenGL';
@@ -216,7 +221,8 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
     
     % Create the axes and fix them
     ax=axes(fig);
-    ax.Position=[0 0 1 1]; % fill the entire figure window
+    ax.Units='pixels';
+    ax.Position=[0 0 p.Results.vid_widhei_px(:)']; % fill the entire figure window
     ax.Color=p.Results.back_rgb;
     ax.XLimMode='manual';
     ax.XLim=p.Results.viewport(1:2);
@@ -239,7 +245,7 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
     
     % Allocate the list of visible dots per frame, if that output is requested
     if nargout>2
-        n_visible=nan(1,p.Results.n_frames);
+        n_plotted=nan(1,p.Results.n_frames);
     end
     
     % Draw until all frames are completed or until user closes window
@@ -299,7 +305,7 @@ function [filename,metadata,n_visible]=optic_flow_dots(varargin)
         % Append the number of visible stars to the list, if requested
         if nargin>2
             visible = inpolygon(xx,yy,[ax.XLim ax.XLim(2) ax.XLim(1)],[ax.YLim(1) ax.YLim(1) ax.YLim(2) ax.YLim(2)]);
-            n_visible(i)=numel(visible);
+            n_plotted(i)=numel(visible);
         end
 
         % Clear the axes and plot the dots
