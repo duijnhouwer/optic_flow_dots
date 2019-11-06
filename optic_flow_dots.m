@@ -212,17 +212,18 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
     fig=figure('Name', mfilename);
     fig.NumberTitle='off';
     fig.CloseRequestFcn=@(~,~,~)evalin('caller','figure_close_requested=true;');
-    fig.Position=[0 0 p.Results.vid_widhei_px(:)'];
+    fig.Position=[0 0 p.Results.vid_widhei_px(:)'+1];
     fig.Units='pixels';
     fig.MenuBar='none';
     fig.Renderer='OpenGL';
     fig.Color=p.Results.back_rgb;
     movegui(fig,'center');
+    drawnow
     
     % Create the axes and fix them
     ax=axes(fig);
     ax.Units='pixels';
-    ax.Position=[0 0 p.Results.vid_widhei_px(:)']; % fill the entire figure window
+    ax.Position=[0 0 p.Results.vid_widhei_px(:)'+1]; % fill the entire figure window
     ax.Color=p.Results.back_rgb;
     ax.XLimMode='manual';
     ax.XLim=p.Results.viewport(1:2);
@@ -319,7 +320,8 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
         % flush the stack 
         drawnow;
         
-        % wait a little bit to allow matlab to detect window closure
+        % wait a little bit to allow matlab to detect if the user pressed
+        % on the closure cross in the top-right corner of the figure window
         pause(0.001);
         
         % If requested, append a frame to the video
