@@ -29,8 +29,7 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
 %   Settings are controlled using the following NAME,VALUE pair arguments 
 %   (default values in brackets):
 %
-%       'vid_widhei_px': Width and height of the video in pixels.
-%           [500 500]
+%       'widhei_px': Width and height of the video in pixels. [500 500]
 %       'back_rgb': Color of the background in red,green,blue values
 %           between 0 and 1 or a color character such as 'w' for white or
 %           ['k'] for black. (see: help plot).
@@ -149,7 +148,7 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
     p.addOptional('x_range',[-1 1],@(x)is_within_unit_range(x));
     p.addOptional('y_range',[-1 1],@(x)is_within_unit_range(x));
     p.addOptional('z_range',[-1 1],@(x)is_within_unit_range(x));
-    p.addOptional('vid_widhei_px',[600 600],@(x)is_natural(x) && numel(x)==2);
+    p.addOptional('widhei_px',[500 500],@(x)is_natural(x) && numel(x)==2);
     p.addOptional('back_rgb','k',@(x)is_color(x));
     p.addOptional('erase',true,@(x)is_boolean(x));
     p.addOptional('dot_style',{'wo','MarkerSize',2,'MarkerFaceColor','w'});
@@ -212,18 +211,17 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
     fig=figure('Name', mfilename);
     fig.NumberTitle='off';
     fig.CloseRequestFcn=@(~,~,~)evalin('caller','figure_close_requested=true;');
-    fig.Position=[0 0 p.Results.vid_widhei_px(:)'+1];
+    fig.Position=[120 120 p.Results.widhei_px(:)'+1];
     fig.Units='pixels';
     fig.MenuBar='none';
     fig.Renderer='OpenGL';
     fig.Color=p.Results.back_rgb;
     movegui(fig,'center');
-    drawnow
     
     % Create the axes and fix them
     ax=axes(fig);
     ax.Units='pixels';
-    ax.Position=[0 0 p.Results.vid_widhei_px(:)'+1]; % fill the entire figure window
+    ax.Position=[0 0 p.Results.widhei_px(:)'+1]; % fill the entire figure window
     ax.Color=p.Results.back_rgb;
     ax.XLimMode='manual';
     ax.XLim=p.Results.viewport(1:2);
@@ -231,7 +229,29 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
     ax.YLim=p.Results.viewport(3:4);
     hold(ax,'on')
     axis(ax,'off');
-    drawnow
+    
+    % give OS time to position and size window perfectly
+    for i=1:100
+        fr=getframe(ax);
+        if size(fr.cdata,1)~=p.Results.widhei_px(1) || size(fr.cdata,2)~=p.Results.widhei_px(2)
+            if i>1
+                % chances are frame size is off because Windows 10 scaling
+                % made title bar thicker and it's blocking the top part of
+                % the frame. Keep incrementing until it's fine
+                fig.Position(4)=fig.Position(4)+1;
+                pause(0.01);
+            end
+            drawnow;
+        else 
+            break;
+        end
+    end
+    if i==100
+        warning('video size will be off!');
+    end
+            
+    
+    
     
     % Create a fresh box with n_dots random dots
     dots_xyz=ones(4,p.Results.n_dots);
