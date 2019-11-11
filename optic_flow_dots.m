@@ -203,8 +203,7 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
     if ~isempty(err)
         error([mfilename ':wrongtransform'],'  %s\n',err{:});
     end
-    
-    
+     
     % Create the figure window
     fig=figure('Name', mfilename,'Visible','off');
     fig.NumberTitle='off';
@@ -279,14 +278,14 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
             fig.Name=sprintf('Recording: %s (%d%%)',vid.Filename,round(fr/p.Results.n_frames*100));
         end
         
-        % Make the transformation matrix
-        R=p.Results.rot_xyz(:,mod(fr-1,size(p.Results.rot_xyz,2))+1);
+        % Make the transformation matrix M
         T=p.Results.trans_xyz(:,mod(fr-1,size(p.Results.trans_xyz,2))+1);
+        R=p.Results.rot_xyz(:,mod(fr-1,size(p.Results.rot_xyz,2))+1);
         A=p.Results.rot_dpf(mod(fr-1,numel(p.Results.rot_dpf))+1);
-        transformatrix=makehgtform('axisrotate',R,A/180*pi,'translate',-T);
+        M=makehgtform('axisrotate',R,A/180*pi,'translate',-T);
         
         % Apply the transformation to the environment
-        dots_xyz=transformatrix*dots_xyz;
+        dots_xyz=M*dots_xyz;
         
         % Refresh dots that have reached the end of their lifetime
         if p.Results.dot_life_fr>0
@@ -382,7 +381,9 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
         warning off
         close(vid);
         warning on
-        delete(fig);
+        if exist('fig','var')
+            delete(fig);
+        end
         builtin('error',varargin{:});
     end
 end
