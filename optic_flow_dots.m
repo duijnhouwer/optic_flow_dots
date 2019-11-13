@@ -326,12 +326,12 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
         
         % Detect which dots are in unit sphere and in front of camera
         in_frontal_half_dome = vecnorm(dots_xyz(1:3,:))<=1 & dots_xyz(3,:)>0;
-        xx = dots_xyz(1,in_frontal_half_dome)./(dots_xyz(3,in_frontal_half_dome));
-        yy = dots_xyz(2,in_frontal_half_dome)./(dots_xyz(3,in_frontal_half_dome));
+        X = dots_xyz(1,in_frontal_half_dome)./(dots_xyz(3,in_frontal_half_dome));
+        Y = dots_xyz(2,in_frontal_half_dome)./(dots_xyz(3,in_frontal_half_dome));
         
         % Append the number of visible stars to the list, if requested
         if nargin>2
-            visible = inpolygon(xx,yy,[ax.XLim ax.XLim(2) ax.XLim(1)],[ax.YLim(1) ax.YLim(1) ax.YLim(2) ax.YLim(2)]);
+            visible = inpolygon(X,Y,[ax.XLim ax.XLim(2) ax.XLim(1)],[ax.YLim(1) ax.YLim(1) ax.YLim(2) ax.YLim(2)]);
             n_plotted(fr)=numel(visible);
         end
         
@@ -341,7 +341,7 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
         else
             hold(ax,'on');
         end
-        plot(ax,xx,yy,p.Results.dot_style{:});
+        plot(ax,X,Y,p.Results.dot_style{:});
         
         % flush the stack
         drawnow;
@@ -352,15 +352,11 @@ function [filename,metadata,n_plotted]=optic_flow_dots(varargin)
         
         % If requested, append a frame to the video
         if ~isempty(p.Results.video_filename)
-            
-             thisframe=getframe(ax);
-    %    if vid.FrameCount==0 || size(thisframe.cdata,1)==vid.Height && size(thisframe.cdata,2)==vid.Width
+            thisframe=getframe(ax);
             if strcmp(vid.VideoFormat,'Grayscale Avi')
                 thisframe.cdata=mean(double(thisframe.cdata),3)/255;
             end
             writeVideo(vid,thisframe);
-            
-           % append_frame_to_video(ax,vid);
         end
         
     end
