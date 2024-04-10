@@ -28,8 +28,8 @@ def generate(n_dots:int=5000,
     
     
     # If the dots are to have limited lifetime, set their remaining frames now
-    if dot_life_fr > 0 and not dot_life_sync:
-        dots_frames_left = np.random.randint(dot_life_fr, size=n_dots)
+    #if dot_life_fr > 0 and not dot_life_sync:
+    #    dots_frames_left = np.random.randint(dot_life_fr, size=n_dots)
     
     # create the transformation matrix
     M = np.eye(4,4)
@@ -77,16 +77,10 @@ def generate(n_dots:int=5000,
             plt.imshow(output_fhw[fr,:,:].astype(float),cmap='gray', vmin=0.0, vmax=1.0)
             plt.show(block=False)
             time.sleep(show_wait_s);
-   
-
         
     return output_fhw
     
 
-
-
-    
-   
 if __name__ == "__main__":
     M=generate() 
     
