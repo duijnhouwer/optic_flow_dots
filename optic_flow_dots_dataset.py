@@ -74,8 +74,8 @@ class OpticFlowDotsDataset(Dataset):
 
 # Example usage:
 if __name__ == "__main__":
-    folder_path = "C:\\Users\\jduij\\Documents\\GitHub\\optic_flow_dots_data\\"
-    dataset = OpticFlowDotsDataset(folder_path, SampleTransformer)
+    data_folder_path = os.path.dirname(__file__)+'_data'
+    dataset = OpticFlowDotsDataset(data_folder_path, SampleTransformer)
 
     # Create a DataLoader
     batch_size = 32

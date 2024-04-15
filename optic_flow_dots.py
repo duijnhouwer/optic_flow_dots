@@ -6,22 +6,62 @@ Created on Thu Mar 14 20:48:00 2024
 """
 import numpy as np
 import scipy
-import matplotlib.pyplot as plt
-import time
+from scipy.signal import convolve2d
+
+
+def create_antialiased_frame(width=200, height=200, dotdiam=3, supersample=4, xy=300):
+    # Initialize the super-sampled image
+    super_width = width * supersample
+    super_height = height * supersample
+    image = np.zeros((super_height, super_width))
+
+    # Determine coordinates
+    if np.isscalar(xy):
+        # Generate a 2 by xy matrix of random coordinates
+        xy = np.random.randint(0, high=min(super_width, super_height), size=(2, xy))
+    elif xy.shape[0]==2:
+        xy = xy * supersample
+        xy = np.round(xy).astype(int)
+        valid_mask = (xy[0] >= 0) & (xy[0] < super_width) & (xy[1] >= 0) & (xy[1] < super_height)
+        xy = xy[:, valid_mask]
+    else: 
+        raise Exception("xy must be a scalar (N) or a 2xN matrix") 
+
+    # Set the specified pixels to 1
+    image[xy[0], xy[1]] = 1
+
+    # Create a circular disk kernel
+    radius = (dotdiam * supersample) // 2
+    y, x = np.ogrid[-radius:radius+1, -radius:radius+1]
+    disk = x**2 + y**2 <= radius**2
+    disk = disk.astype(float)
+
+    # Convolve the image with the disk
+    convolved_image = convolve2d(image, disk, mode='same', boundary='fill', fillvalue=0)
+
+    # Threshold the image
+    thresholded_image = (convolved_image > 0).astype(int)
+
+    # Downsample the image using a supersample by supersample averaging kernel
+    kernel = np.ones((supersample, supersample)) / (supersample**2)
+    downsampled_image = convolve2d(thresholded_image, kernel, mode='valid')[::supersample, ::supersample]
+    return downsampled_image
    
-def generate(n_dots:int=5000,
-                    trans_ruf: np.array=np.array([0, 0.0, 0.02]), # right up front, 2-norm is translation speed in units per frame
-                    rot_ruf=np.array([0, 0, 0]), # right up front, 2-norm is rotation speed in degrees per frame
-                    n_frames:int=100,
-                    wid_px:int=200,
-                    hei_px:int=200,
-                    dot_life_fr:int=0,
-                    dot_life_sync:bool=False,
-                    show_wait_s:float=-1 # negative means don't show the animation 
-                    ): 
+    
+def generate_movie(n_dots:int=5000,
+                   trans_ruf: np.array=np.array([0, 0.0, 0.02]), # right up front, 2-norm is translation speed in units per frame
+                   rot_ruf=np.array([0, 0, 0]), # right up front, 2-norm is rotation speed in degrees per frame
+                   n_frames: int=100,
+                   wid_px: int=200,
+                   hei_px: int=200,
+                   dot_diam_px: int=5,
+                   supersample: int=4,
+                   dot_life_fr: int=0,
+                   dot_life_sync: bool=False,
+                   ): 
     
     # allocate the output with dimensions FrameNr, Height, Width
-    output_fhw=np.zeros((n_frames,hei_px,wid_px),bool);
+    output_fhw=np.zeros((n_frames,hei_px,wid_px));
     
     # Give the dots starting positions in a 2x2x2 box with the origin at the center
     dots_xyz = np.random.random_sample((3,n_dots))*2.0-1.0;
@@ -71,18 +111,15 @@ def generate(n_dots:int=5000,
         X/=2*edgeval
         Y/=2*edgeval
         # set the pixels of the current frame in output_fhw
-        output_fhw[fr,(Y*hei_px).astype(int),(X*wid_px).astype(int)]=True;      
         
-        if show_wait_s>=0:
-            plt.imshow(output_fhw[fr,:,:].astype(float),cmap='gray', vmin=0.0, vmax=1.0)
-            plt.show(block=False)
-            time.sleep(show_wait_s);
+        XY= np.stack((X*wid_px, Y*hei_px), axis=0)
+        output_fhw[fr,:,:] = create_antialiased_frame(width=wid_px, height=hei_px, dotdiam=dot_diam_px, supersample=supersample, xy=XY)
         
     return output_fhw
     
 
 if __name__ == "__main__":
-    M=generate() 
+    M=generate_movie() 
     
     
 
