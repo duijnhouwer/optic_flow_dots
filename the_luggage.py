@@ -4,6 +4,53 @@ Created on Fri Apr 12 10:05:07 2024
 
 @author: jduij
 """
+import tkinter as tk
+from tkinter import filedialog
+from optic_flow_dots_dataset import extract_target_response_from_filename
+import torch
+import os
+
+    
+def select_file(initialdir: str=""):
+    """Open a file dialog to select the tensor file."""
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    root.attributes('-topmost', True)  # Ensure file dialog is on top
+    if initialdir=="":
+        file_path = filedialog.askopenfilename()
+    else:
+        file_path = filedialog.askopenfilename(initialdir=initialdir)
+    root.destroy()  # Close the Tkinter root window after file selection
+    return file_path
+        
+        
+def load_stimulus_and_target_response(file_path: str=""):   
+    if file_path=="":
+        initialdir=os.path.dirname(__file__)+'_data'
+        file_path=select_file(initialdir=initialdir)
+        if not file_path:
+            file_path="No file selected"        
+    if file_path != "No file selected":
+        stimulus = torch.load(file_path)
+        target_response = extract_target_response_from_filename(input_string=file_path)
+    else:
+        stimulus, target_response = None
+    return {'stimulus': stimulus, 'target_response': target_response, 'file_path': file_path}
+    
+    
+def load_pytorch_model(file_path: str=""):
+    if file_path=="":
+        initialdir=os.path.dirname(__file__)+'_models'
+        file_path=select_file(initialdir=initialdir)
+        if not file_path:
+            file_path="No file selected"        
+    if file_path != "No file selected":
+        train_stage = torch.load(file_path)
+        return train_stage['model'].eval() # .eval() sets the model to evaluation mode
+    else:
+        model = None
+    return model
+    
 
 def format_duration(seconds):
     seconds=round(seconds)
@@ -22,6 +69,7 @@ def format_duration(seconds):
     else:
         str=f"{seconds} seconds"
     return str
+
 
 def conv3d_output_shape(input_shape, n_output_chans, kernel_shape, padding=0, stride=1, dilation=1):
     """

@@ -6,29 +6,9 @@ Created on Fri Mar 22 21:36:31 2024
 """
 
 import os
-import re
 import torch
 from torch.utils.data import Dataset, DataLoader
-
-
-def extract_trans_rot_xyz(input_string: str):
-    # Use regular expression to find the part between brackets
-    match = re.search(r"\[([-+]\d+\.\d+(_[-+]?\d+\.\d+)*)\]", input_string)
-
-    if match:
-        # Extract the matched string
-        extracted_string = match.group(1)
-        # Split the string by underscores and convert to floats
-        floats = [float(x) for x in extracted_string.split('_')]
-
-        if len(floats) == 6:
-            # Create a PyTorch tensor from the floats
-            trans_rot_xyz = torch.tensor(floats, dtype=torch.float32)
-            return trans_rot_xyz
-        else:
-            raise ValueError("The input string does not contain 6 floats.")
-    else:
-        raise ValueError("No valid pattern found in the input string ""{}"".".format(input_string))
+import re
 
 
 class SampleTransformer:
@@ -63,13 +43,32 @@ class OpticFlowDotsDataset(Dataset):
         flow_tensor = torch.load(file_path)
 
         # Extract the translation and rotation parameters from the filename
-        transrot_xyz = extract_trans_rot_xyz(file_name)
+        transrot_xyz = extract_target_response_from_filename(file_name)
 
         # Apply any specified transform
         if self.transform:
             transrot_xyz = self.transform(transrot_xyz)
 
         return flow_tensor, transrot_xyz
+    
+def extract_target_response_from_filename(input_string: str):
+    # Use regular expression to find the part between brackets
+    match = re.search(r"\[([-+]\d+\.\d+(_[-+]?\d+\.\d+)*)\]", input_string)
+
+    if match:
+        # Extract the matched string
+        extracted_string = match.group(1)
+        # Split the string by underscores and convert to floats
+        floats = [float(x) for x in extracted_string.split('_')]
+
+        if len(floats) == 6:
+            # Create a PyTorch tensor from the floats
+            trans_rot_xyz = torch.tensor(floats, dtype=torch.float32)
+            return trans_rot_xyz
+        else:
+            raise ValueError("The input string does not contain 6 floats.")
+    else:
+        raise ValueError("No valid pattern found in the input string ""{}"".".format(input_string))
 
 
 # Example usage:

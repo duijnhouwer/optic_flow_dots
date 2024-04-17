@@ -23,8 +23,7 @@ def random_unit_vector(n: int=3):
 def create_optic_flow_files(n=100000,
                             trans_speed_minmax: np.array=np.array([0.02,0.02]),
                             rot_dpf_minmax: np.array=np.array([0,0]),
-                            savedir: str=os.path.dirname(__file__)+'_data'
-                            ):
+                            savedir: str=os.path.dirname(__file__)+'_data'):
     start_second=time.time()
     for i in range(1,n+1):
         trans_speed=np.min(trans_speed_minmax)+np.random.sample()*trans_speed_minmax.ptp()
@@ -38,8 +37,7 @@ def create_optic_flow_files(n=100000,
                                          wid_px=200,
                                          hei_px=200,
                                          dot_diam_px=3,
-                                         supersample=2
-                                         )
+                                         supersample=2)
         # convert to torch tensor
         M=torch.from_numpy(M)
         # add a channel dimension with 1 level, meaning grayscale. conv3d needs this dimension
