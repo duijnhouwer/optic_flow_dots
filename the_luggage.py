@@ -10,6 +10,7 @@ from optic_flow_dots_dataset import extract_target_response_from_filename
 import torch
 import os
 
+
     
 def select_file(initialdir: str=""):
     """Open a file dialog to select the tensor file."""
@@ -36,20 +37,6 @@ def load_stimulus_and_target_response(file_path: str=""):
     else:
         stimulus, target_response = None
     return {'stimulus': stimulus, 'target_response': target_response, 'file_path': file_path}
-    
-    
-def load_pytorch_model(file_path: str=""):
-    if file_path=="":
-        initialdir=os.path.dirname(__file__)+'_models'
-        file_path=select_file(initialdir=initialdir)
-        if not file_path:
-            file_path="No file selected"        
-    if file_path != "No file selected":
-        train_stage = torch.load(file_path)
-        return train_stage['model'].eval() # .eval() sets the model to evaluation mode
-    else:
-        model = None
-    return model
     
 
 def format_duration(seconds):

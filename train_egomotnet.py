@@ -21,28 +21,34 @@ import matplotlib.pyplot as plt
 figures={'loss_fig': None, 'loss_ax': None}
 
 class EgoMotNet(nn.Module):
-    def __init__(self, input_shape:tuple, nfilters:int, filter_shape:tuple, n_out_features:int):
+    def __init__(self, initdict: dict=None):
+        
+        if initdict == None:
+            raise ValueError("Must provide initialization dictionary")
+        
         # Check the inputs
-        if len(input_shape) != 5 or not all(isinstance(x, int) and x > 0 for x in input_shape):
-            raise ValueError("input_shape must be a 5-element tuple of positive ints")  
-        if not type(nfilters) == int or nfilters <= 0:
+        if len(initdict['stimulus_shape']) != 5 or not all(isinstance(x, int) and x > 0 for x in initdict['stimulus_shape']):
+            raise ValueError("stimulus_shape must be a 5-element tuple of positive ints")  
+        if not type(initdict['n_filters']) == int or initdict['n_filters'] <= 0:
             raise ValueError("nfilters must be a positive int")
-        if len(filter_shape) != 3 or not all(isinstance(x, int) and x > 0 for x in filter_shape):
-            raise ValueError("filter_shape must be a 3-element tuple of positive ints")      
+        if len(initdict['filter_shape']) != 3 or not all(isinstance(x, int) and x > 0 for x in initdict['filter_shape']):
+            raise ValueError("filter_shape must be a 3-element tuple of positive ints")    
+        if not type(initdict['n_response_features']) == int or initdict['n_response_features'] <= 0:
+            raise ValueError("n_response_features must be a positive int")
         
         # Calculate the output shape of the Conv3d and MaxPool3d layers
-        conv1_bcfhw = lgg.conv3d_output_shape(input_shape,nfilters,filter_shape);
-        maxpool_fhw = (conv1_bcfhw[2],1,1);
-        pool_bcfhw = lgg.maxpool3d_output_shape(conv1_bcfhw, maxpool_fhw, stride=(1,1,1))
-        # 
+        conv_bcfhw = lgg.conv3d_output_shape(initdict['stimulus_shape'],initdict['n_filters'],initdict['filter_shape'])
+        maxpool_fhw = (conv_bcfhw[2],1,1);
+        pool_bcfhw = lgg.maxpool3d_output_shape(conv_bcfhw, maxpool_fhw, stride=(1,1,1))
+        # Define the model architecture
         super(EgoMotNet, self).__init__()
-        self.conv1 = nn.Conv3d(in_channels=input_shape[1], out_channels=nfilters, kernel_size=filter_shape)
+        self.conv = nn.Conv3d(in_channels=initdict['stimulus_shape'][1], out_channels=initdict['n_filters'], kernel_size=initdict['filter_shape'])
         self.relu = nn.ReLU()
         self.pool = nn.MaxPool3d(kernel_size=maxpool_fhw)
-        self.fc = nn.Linear(in_features=math.prod(pool_bcfhw[1:]), out_features=n_out_features)
+        self.fc = nn.Linear(in_features=math.prod(pool_bcfhw[1:]), out_features=initdict['n_response_features'])
 
     def forward(self, x):
-        x = self.conv1(x)
+        x = self.conv(x)
         x = self.relu(x)
         x = self.pool(x)
         x = x.view(x.size(0), -1)  # Flatten for fully connected layer
@@ -72,18 +78,17 @@ def train_validate_test_model(dataset,hyperparms: dict=None):
     val_loader = DataLoader(val_dataset, batch_size=hyperparms['batch_size'])
     test_loader = DataLoader(test_dataset, batch_size=hyperparms['batch_size'])
 
+    # Initialize the neural network model
     # Get one batch from the trainloader, so we know the sizes of the input to the model and the target
     for one_batch_data, one_batch_targets in train_loader:
         break
-    shape_in = tuple(one_batch_data.shape)
-    n_out = len(one_batch_targets[0])
-    
-    # Initialize the neural network model
-    model = EgoMotNet(input_shape = shape_in, 
-                      nfilters = 64, 
-                      filter_shape = (shape_in[2],5,5),
-                      n_out_features = n_out
-                      ).to(device)
+    stim_shape = tuple(one_batch_data.shape)
+    n_resp = len(one_batch_targets[0]) 
+    initdict = {'stimulus_shape': stim_shape,
+                 'n_filters': 64,
+                 'filter_shape': (stim_shape[2],7,7),
+                 'n_response_features': n_resp}
+    model = EgoMotNet(initdict).to(device)
     optimizer = optim.Adam(model.parameters(), lr=hyperparms['learning_rate'])
     criterion = hyperparms['loss_fnc']
     
@@ -108,7 +113,7 @@ def train_validate_test_model(dataset,hyperparms: dict=None):
             log['epoch'].append(epoch)
             log['val_loss'].append(val_loss)
             log['state_dict'].append(model.state_dict())
-            save_model(model, hyperparms, log)
+            save_model(model, hyperparms, initdict, log)
             plot_loss(log)
             
         print(f"Epoch [{epoch+1}/{hyperparms['num_epochs']}], Train mLoss: {loss.item()*1000:.4f}, Val mLoss: {val_loss*1000 / len(val_loader):.4f}")
@@ -125,21 +130,22 @@ def train_validate_test_model(dataset,hyperparms: dict=None):
 
     print(f"Test mLoss: {test_loss*1000 / len(test_loader):.4f}")
 
-    return (model, hyperparms, log)
+    return (model, hyperparms, initdict, log)
 
 
-def save_model(model, hyperparms, log):
+def save_model(model, hyperparms, initdict, log):
     now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
     model_folder_path = os.path.dirname(__file__)+'_models'
     model_filename = os.path.join(model_folder_path,"epoch_{}_{}.pth".format(log['epoch'][-1],now_str))
     torch.save({
-        #'model_state': model.state_dict(),
-        'model': model,
-        'hyperparameters': hyperparms,
+        'model_state': model.state_dict(),
+        'hyperparms': hyperparms,
+        'initdict': initdict, 
         'log': log, 
         'date': now_str
          }, model_filename)
     print("[{}] Saved: {}".format(inspect.currentframe().f_code.co_name,model_filename))
+    
 
 def load_model(file_path: str=""):
     if file_path=="":
@@ -148,11 +154,14 @@ def load_model(file_path: str=""):
         if not file_path:
             file_path="No file selected"        
     if file_path != "No file selected":
-        egomotnet_stage = torch.load(file_path)
-        return egomotnet_stage['model'].eval() # .eval() sets the model to evaluation mode
+        state = torch.load(file_path)
+        model = EgoMotNet(state['initdict'])
+        model.load_state_dict(state['model_state'])
+        model.eval() # .eval() sets the model to evaluation mode
     else:
         model = None
     return model
+
 
 def plot_loss(log, initialize=False):
     global figures
@@ -175,5 +184,5 @@ if __name__=="__main__":
     #folder_path = "C:\\Users\\jduij\\Documents\\GitHub\\optic_flow_dots_data\\"
     data_folder_path = os.path.dirname(__file__)+'_data'
     dataset = OpticFlowDotsDataset(data_folder_path)
-    (trained_model, hyperparms, log) = train_validate_test_model(dataset)
+    (trained_model, hyperparms, initdict, log) = train_validate_test_model(dataset)
 

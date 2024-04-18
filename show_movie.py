@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import inspect
 import the_luggage as lgg
+from train_egomotnet import load_model
 
 def animate_movie(data_dict):
     """Animate a movie stored in a PyTorch tensor."""
@@ -26,7 +27,7 @@ def main():
         return
     
     # Load the model
-    model = lgg.load_pytorch_model()
+    model=load_model()
     if model==None:
         return
     animate_movie(K)
