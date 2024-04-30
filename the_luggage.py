@@ -143,3 +143,17 @@ def maxpool3d_output_shape(input_size, kernel_size, stride=None, padding=0, dila
     OW = pooled_output_size(W, kW, pW, sW, dW)
 
     return (N, C, OD, OH, OW)
+
+def computer_sleep(state: str=None):      
+    import platform
+    if platform.system()=="Windows":
+        import ctypes
+        if state=="prevent":
+            ctypes.windll.kernel32.SetThreadExecutionState(0x80000002)
+        elif state=="allow":
+            ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+        else:
+            raise('State must be "prevent" or "allow"')
+    else:
+        raise('computer_sleep has only implemented for Windows, as of yet')
+    

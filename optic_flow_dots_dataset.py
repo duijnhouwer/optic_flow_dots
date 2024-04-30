@@ -17,7 +17,7 @@ class SampleTransformer:
         self.params = params
     def __call__(self, sample):
         # Apply your transformation logic here
-        transformed_sample = sample.type(torch.float32)  # Placeholder; replace with actual transformation
+        transformed_sample = sample.type(torch.float32)
         return transformed_sample
 
 
