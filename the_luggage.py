@@ -103,24 +103,24 @@ def conv3d_output_shape(input_shape, n_output_chans, kernel_shape, padding=0, st
     return (nbatches, n_output_chans, out_frames, out_height, out_width)
 
 
-def maxpool3d_output_shape(input_size, kernel_size, stride=None, padding=0, dilation=1):
+def maxpool3d_output_shape(input_shape, kernel_size, stride=None, padding=0, dilation=1):
     """
-    Calculate the output size of a tensor after applying nn.MaxPool3d.
+    Calculate the output shape of a 3D max pooling layer.
 
     Parameters:
-    input_size (tuple): Tuple of (N, C, D, H, W) representing the size of the input tensor.
-    kernel_size (tuple): Tuple of (kD, kH, kW) representing the depth, height, and width of the kernel.
-    stride (tuple): Tuple of (sD, sH, sW) representing the stride of the pool.
-    padding (tuple or int): Padding on each dimension of the tensor.
-    dilation (tuple or int): The spacing between kernel elements.
+        input_shape (tuple): The shape of the input tensor (N, C, D, H, W).
+        kernel_size (tuple): The size of the kernel (kD, kH, kW).
+        stride (tuple): The stride of the pooling (sD, sH, sW).
+        padding (tuple): The padding added to each dimension (pD, pH, pW).
+        dilation (tuple): The spacing between kernel elements (dD, dH, dW) (optional, default=(1,1,1)).
 
     Returns:
-    tuple: The size of the tensor after max pooling.
+        tuple: The output shape of the max pooling layer (N, C, D_out, H_out, W_out).
     """
-    # Default stride to kernel_size if not provided
-    if stride is None:
-        stride = kernel_size
-
+    
+    if stride==None:
+        stride = kernel_size # this is the MaxPool3d default behavior
+    
     # Ensure stride, padding, and dilation are tuples
     if isinstance(stride, int):
         stride = (stride, stride, stride)
@@ -128,32 +128,32 @@ def maxpool3d_output_shape(input_size, kernel_size, stride=None, padding=0, dila
         padding = (padding, padding, padding)
     if isinstance(dilation, int):
         dilation = (dilation, dilation, dilation)
-
-    def pooled_output_size(dim_size, k, p, s, d):
-        return ((dim_size + (2 * p) - d * (k - 1) - 1) // s) + 1
-
-    N, C, D, H, W = input_size
+        
+    N, C, D, H, W = input_shape
     kD, kH, kW = kernel_size
     sD, sH, sW = stride
     pD, pH, pW = padding
     dD, dH, dW = dilation
+    
+    D_out = ((D + 2 * pD - dD * (kD - 1) - 1) // sD) + 1
+    H_out = ((H + 2 * pH - dH * (kH - 1) - 1) // sH) + 1
+    W_out = ((W + 2 * pW - dW * (kW - 1) - 1) // sW) + 1
 
-    OD = pooled_output_size(D, kD, pD, sD, dD)
-    OH = pooled_output_size(H, kH, pH, sH, dH)
-    OW = pooled_output_size(W, kW, pW, sW, dW)
+    return (N, C, D_out, H_out, W_out)
 
-    return (N, C, OD, OH, OW)
 
 def computer_sleep(state: str=None):      
     import platform
     if platform.system()=="Windows":
         import ctypes
-        if state=="prevent":
+        if state=="disable":
             ctypes.windll.kernel32.SetThreadExecutionState(0x80000002)
-        elif state=="allow":
+            print('Computer sleep disabled.')
+        elif state=="enable":
             ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+            print('Computer sleep enabled.')
         else:
-            raise('State must be "prevent" or "allow"')
+            raise ValueError('State must be "disable" or "enable"')
     else:
-        raise('computer_sleep has only implemented for Windows, as of yet')
+        raise Exception('I implemented computer_sleep only for Windows so far')
     

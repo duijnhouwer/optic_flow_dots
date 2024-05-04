@@ -49,8 +49,8 @@ def create_antialiased_frame(width=200, height=200, dotdiam=3, supersample=4, xy
    
     
 def generate_movie(n_dots:int=8000,
-                   trans_ruf: np.array=np.array([0, 0.0, 0.02]), # right up front, 2-norm is translation speed in units per frame
-                   rot_ruf=np.array([0, 0, 0]), # right up front, 2-norm is rotation speed in degrees per frame
+                   trans_ruf: np.array=np.array([0.0, 0.0, 0.02]), # right up front, 2-norm is translation speed in units per frame
+                   rot_ruf: np.array=np.array([0.0, 0.0, 0.0]), # right up front, 2-norm is rotation speed in degrees per frame
                    n_frames: int=2,
                    wid_px: int=300,
                    hei_px: int=300,
@@ -61,65 +61,55 @@ def generate_movie(n_dots:int=8000,
     # Allocate the movie tensor with dimensions FrameNr, Height, Width
     movie_fhw=np.zeros((n_frames,hei_px,wid_px), dtype=np.float32);
     
-    # Create an array to append the jump distance of visible dots between frames
-    dot_jump_px = []
-    
     # Give the dots starting positions in a 2x2x2 box with the origin at the center
     dots_xyz = np.random.random_sample((3,n_dots))*2.0-1.0;
     
-    # create the transformation matrix
-    M = np.eye(4,4)
-    M[0:3,3]=trans_ruf*[-1,1,-1];
-    M[0:3,0:3]=scipy.spatial.transform.Rotation.from_rotvec(rot_ruf,degrees=True).as_matrix()
+    # create the transformation matrix M4x4
+    M4x4 = np.eye(4,4)
+    M4x4[0:3,3] = trans_ruf * np.array([-1.0,1.0,-1.0])
+    M4x4[0:3,0:3] = scipy.spatial.transform.Rotation.from_rotvec(rot_ruf, degrees=True).as_matrix()
     
     
     # loop over the frames to be rendered
-    X, Y = None, None
     for fr in range(n_frames):
     
-        dots_xyz=np.matmul(M,np.concatenate((dots_xyz, np.ones((1,n_dots))), axis=0))[0:3,:]
-        too_neg=dots_xyz<-1
-        too_pos=dots_xyz>1
+        dots_xyz = np.matmul(M4x4, np.concatenate((dots_xyz, np.ones((1,n_dots))), axis=0))[0:3,:]
+        too_neg = dots_xyz<-1
+        too_pos = dots_xyz>1
         # Create a logical index tensor to all 4 coordinates of dots that have at least one out of bounds coordinate
-        out_of_bound_dots_idx=np.tile(np.any(too_neg|too_pos, axis=0),(3,1))
+        out_of_bound_dots_idx = np.tile(np.any(too_neg|too_pos, axis=0),(3,1))
         # Of the out of bounds dots, replace the coordinates that were not themselves out of bounds with fresh random values
-        idx=out_of_bound_dots_idx & ~too_neg & ~too_pos
-        dots_xyz[idx]=np.random.random_sample(np.sum(idx))*2.0-1.0
+        idx = out_of_bound_dots_idx & ~too_neg & ~too_pos
+        dots_xyz[idx] = np.random.random_sample(np.sum(idx))*2.0-1.0
         # Wrap the out of bound coordinates around
-        dots_xyz[too_neg]+=2
-        dots_xyz[too_pos]-=2
+        dots_xyz[too_neg] += 2
+        dots_xyz[too_pos] -= 2
         
         # Detect which dots are in unit sphere and in front of camera 
-        in_sphere=np.linalg.norm(dots_xyz, axis=0)<=1
-        in_front=dots_xyz[2,:]>0
-        in_frontal_half_dome=np.logical_and(in_sphere, in_front)
+        in_sphere = np.linalg.norm(dots_xyz, axis=0)<=1
+        in_front = dots_xyz[2,:]>0
+        in_frontal_half_dome = np.logical_and(in_sphere, in_front)
                    
         X = np.divide(dots_xyz[0,in_frontal_half_dome], dots_xyz[2,in_frontal_half_dome])
         Y = np.divide(dots_xyz[1,in_frontal_half_dome], dots_xyz[2,in_frontal_half_dome])
         
-        if fr>0:
-            dot_jump_px.append(-fr)
-            dot_jump_px.append(np.hypot(X-Xprev,Y-Yprev)) FAIL: PREV AND CURRENT VERSION DO NOT NECESSARILY HAVE THE SAME LENGTH
-            
-        Xprev, Yprev = X, Y
-        
         # Limit to 90 x 90 degree viewport
-        edgeval=np.sin(45/180*np.pi);
-        keep_idx=np.logical_and(abs(X)<edgeval,abs(Y)<edgeval)
-        X=X[keep_idx]
-        Y=Y[keep_idx]
+        edgeval = np.sin(45/180*np.pi);
+        keep_idx = np.logical_and(abs(X)<edgeval, abs(Y)<edgeval)
+        X = X[keep_idx]
+        Y = Y[keep_idx]
         
         # Normalize image plane dimensions to [0 1)
-        X+=edgeval
-        Y+=edgeval
-        X/=2*edgeval
-        Y/=2*edgeval
+        X += edgeval
+        Y += edgeval
+        X /= 2 * edgeval
+        Y /= 2 * edgeval
         
-        # set the pixels of the current frame in movie_fhw
+        # Append an antialiased frame to the movie
         XY= np.stack((X*wid_px, Y*hei_px), axis=0)
         movie_fhw[fr,:,:] = create_antialiased_frame(width=wid_px, height=hei_px, dotdiam=dot_diam_px, supersample=supersample, xy=XY)
         
-    return movie_fhw, dot_jump_px
+    return movie_fhw
     
 
 if __name__ == "__main__":

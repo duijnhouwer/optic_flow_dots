@@ -39,7 +39,7 @@ def animate_movie(data_dict):
     button = Button(button_ax, 'Next')    
     button.on_clicked(on_button_clicked)
 
-    animation = FuncAnimation(fig, update, frames=range(stim.size(1)), interval=40)
+    animation = FuncAnimation(fig, update, frames = range(stim.size(1)), interval=250)
     plt.show()
 
 
@@ -50,7 +50,7 @@ def main():
     if checkpoint==None:
         return
     
-    model = init_from_checkpoint(checkpoint)
+    model, optimizer = init_from_checkpoint(checkpoint)
     model.to('cpu')
     
     data_folder_path = os.path.dirname(__file__)+'_data'
@@ -67,7 +67,7 @@ def main():
                 model_response = model(batch_data)
                 loss = checkpoint['hyperparms']['loss_fnc'](model_response, batch_targets)
                 break
-            
+        
             data_dict = {'stimulus': batch_data.squeeze(0), 
                          'target_response': batch_targets.squeeze(0),
                          'actual_response': model_response.squeeze(0),

@@ -13,13 +13,12 @@ from optic_flow_dots_dataset import OpticFlowDotsDataset
 import the_luggage as lgg
 import math
 import os
+import random
+import inspect
 from datetime import datetime
 from torchinfo import summary
-import matplotlib.pyplot as plt
-import random
+import egomotnet_plot
 
-# Initialize global figure and axis variables
-figures={'loss_fig': None, 'loss_ax': None}
 
 class EgoMotNet(nn.Module):
     def __init__(self, init_dict: dict=None):
@@ -27,71 +26,98 @@ class EgoMotNet(nn.Module):
         # Check the inputs
         if init_dict == None:
             raise ValueError("Must provide initialization dictionary")
+            
         if len(init_dict['stimulus_shape']) != 5 or not all(isinstance(x, int) and x > 0 for x in init_dict['stimulus_shape']):
             raise ValueError("stimulus_shape must be a 5-element tuple of positive ints")  
+            
         if not type(init_dict['n_filters']) == int or init_dict['n_filters'] <= 0:
             raise ValueError("nfilters must be a positive int")
+            
         if len(init_dict['filter_shape']) != 3 or not all(isinstance(x, int) and x > 0 for x in init_dict['filter_shape']):
-            raise ValueError("filter_shape must be a 3-element tuple of positive ints")    
+            raise ValueError("filter_shape must be a 3-element tuple of positive ints")  
+            
+        if not type(init_dict['max_pool_widhei']) == int or init_dict['max_pool_widhei'] <= 0:
+            raise ValueError("max_pool_widhei must be a positive int")    
+            
         if not type(init_dict['n_response_features']) == int or init_dict['n_response_features'] <= 0:
             raise ValueError("n_response_features must be a positive int")
         
         # Calculate the output shape of the Conv3d and MaxPool3d layers
-        conv_bcfhw = lgg.conv3d_output_shape(init_dict['stimulus_shape'],init_dict['n_filters'],init_dict['filter_shape'])
-        maxpool_fhw = (conv_bcfhw[2],1,1);
-        pool_bcfhw = lgg.maxpool3d_output_shape(conv_bcfhw, maxpool_fhw, stride=(1,1,1))
+        conv_out_bcfhw = lgg.conv3d_output_shape(init_dict['stimulus_shape'], init_dict['n_filters']*4, init_dict['filter_shape'])
+        pool_kernel_fhw = (conv_out_bcfhw[2],2,2) #(conv_out_bcfhw[2], init_dict['max_pool_widhei'], init_dict['max_pool_widhei']);
+        pool_out_bcfhw = lgg.maxpool3d_output_shape(conv_out_bcfhw, pool_kernel_fhw)
         
         # Define the model architecture
         super(EgoMotNet, self).__init__()
         self.conv = nn.Conv3d(in_channels=init_dict['stimulus_shape'][1], out_channels=init_dict['n_filters'], kernel_size=init_dict['filter_shape'])
         self.relu = nn.ReLU()
-        self.pool = nn.MaxPool3d(kernel_size=maxpool_fhw)
-        self.fc = nn.Linear(in_features=math.prod(pool_bcfhw[1:]), out_features=init_dict['n_response_features'])
+        self.pool = nn.MaxPool3d(kernel_size=pool_kernel_fhw)
+        self.fc = nn.Linear(in_features=math.prod(pool_out_bcfhw[1:]), out_features=init_dict['n_response_features'])
 
+    
     def forward(self, x):
-        x = self.conv(x)
+        #rotmov = lambda x, angle_deg: torch.rot90(x, k=int(angle_deg/90), dims=(3, 4))
+        x0 = self.conv(x)
+        x90 = rotmov(self.conv(rotmov(x,90)),-90)
+        x180 = rotmov(self.conv(rotmov(x,180)),-180)
+        x270 = rotmov(self.conv(rotmov(x,270)),-270)
+        x = torch.cat((x0, x90, x180, x270), dim=1)
         x = self.relu(x)
         x = self.pool(x)
-        x = x.view(x.size(0), -1)  # Flatten for fully connected layer
+        x = x.view(x.shape[0], -1)  # Flatten for fully connected layer
         x = self.fc(x)
-        
         return x
 
 
-def train(dataset, checkpoint=None):
+def rotmov(movie_batch, angle_deg):
+    # rotate the frames of the movies by angle_deg.
+    if angle_deg%90 != 0: raise ValueError('angle_deg must be a multiple of 90')
+    return torch.rot90(movie_batch, k=int(angle_deg/90), dims=(3, 4))
+
+
+def train(data, checkpoint=None):
+    
+    # Load the hyperparms from the checkpoint, or define them here if no checkpoint was provided
+    if checkpoint == None:
+        hyperparms = {'num_epochs': 100, 
+                      'batch_size': 10, 
+                      'learning_rate': 0.001, 
+                      'loss_fnc': nn.MSELoss(reduction='mean')}
+    else:
+        hyperparms = checkpoint['hyperparms']
                            
     # Specify the device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Split dataset
-    num_samples = len(dataset)
-    train_size = int(0.70 * num_samples)
-    val_size = int(0.15 * num_samples)
-    test_size = num_samples - train_size - val_size
-    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+    # Split data
+    samples_n = len(data)
+    init_n = 1
+    train_n = int(0.70 * samples_n - init_n)
+    val_n = int(0.15 * samples_n - init_n)
+    test_n = samples_n - init_n - train_n - val_n
+    init_data, train_data, val_data, test_data = random_split(data, (init_n, train_n, val_n, test_n))
+
+    # Initialize the data loaders. 
+    # drop_last=True drops the last len(train_data)%batch_size movies to keep the mean loss per movie calculations accurate   
+    train_loader = DataLoader(train_data, batch_size=hyperparms['batch_size'], drop_last=True, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size=hyperparms['batch_size'], drop_last=True)
+    test_loader = DataLoader(test_data, batch_size=1) # no drop_last needed if batch_size = 1
+    init_loader = DataLoader(init_data, batch_size=1)
+    
+    if len(train_data)==0:
+        raise ValueError('Number of samples in train_data ({}) is less than the batchsize ({}).'.format(len(train_data),train_loader.batch_size))
+    if len(val_data)==0:
+        raise ValueError('Number of samples in val_data ({}) is less than the batchsize ({}).'.format(len(val_data),val_loader.batch_size))
     
     if checkpoint == None:
-        hyperparms = {'num_epochs': 100, 
-                      'batch_size': 100, 
-                      'learning_rate': 0.0005, 
-                      'loss_fnc': nn.MSELoss()}
-    else:
-        hyperparms = checkpoint['hyperparms']
-
-    # Initialize the data loaders
-    train_loader = DataLoader(train_dataset, batch_size=hyperparms['batch_size'], shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=hyperparms['batch_size'])
-    test_loader = DataLoader(test_dataset, batch_size=1)
-
-    if checkpoint == None:
         # Get one batch from the trainloader, so we know the sizes of the input to the model and the target
-        for one_batch_data, one_batch_targets in train_loader:
-            break
-        stim_shape = tuple(one_batch_data.shape)
-        n_resp = len(one_batch_targets[0])  
+        X, y = next(iter(init_loader))
+        stim_shape = tuple(X.shape)
+        n_resp = len(y[0])  
         init_dict = {'stimulus_shape': stim_shape,
-                    'n_filters': 64,
+                    'n_filters': 32,
                     'filter_shape': (stim_shape[2],11,11),
+                    'max_pool_widhei': 5,
                     'n_response_features': n_resp}
     else:
         init_dict = checkpoint['init_dict']
@@ -113,7 +139,7 @@ def train(dataset, checkpoint=None):
     
     # Initialize the starting epoch number and the log
     if checkpoint == None:
-        log = {'time': [], 'epoch': [], 'val_loss': []}
+        log = {'time': [], 'epoch': [], 'val_loss': [], 'train_loss': [], 'val_trans_delta_deg': [], 'val_rot_delta_deg': []}
         start_epoch = 0
     else:
         log = checkpoint['log']
@@ -121,35 +147,48 @@ def train(dataset, checkpoint=None):
     
 
     for epoch in range(start_epoch, hyperparms['num_epochs']):
-        model.train()
-        for batch_data, batch_targets in train_loader:
-            batch_data, batch_targets = batch_data.to(device), batch_targets.to(device)  # Move data to the device         
+        model.train() # Set the model to training mode
+        total_train_loss = 0.0
+        batch_count  = 0
+        for X, y in train_loader:
+            X, y = X.to(device), y.to(device)  # Move data to the device         
             optimizer.zero_grad()
-            outputs = model(batch_data)
-            loss = criterion(outputs, batch_targets)
-            loss.backward()
+            train_loss = criterion(model(X), y)
+            train_loss.backward()
             optimizer.step()
-
-        model.eval()
+            total_train_loss += train_loss.item()
+            batch_count += 1
+        mean_train_loss_per_movie = total_train_loss / batch_count
+           
+        model.eval() # Set the model to evaluation mode
         with torch.no_grad():
-            val_loss = sum(criterion(model(batch_data.to(device)), batch_targets.to(device)).item() for batch_data, batch_targets in val_loader)
+            total_val_loss = 0.0
+            batch_count = 0
+            for X, y in val_loader:
+                X, y = X.to(device), y.to(device)  # Move data to the device 
+                yHat = model(X)
+                val_loss = criterion(yHat, y)
+                val_delta_deg = egomotnet_plot.delta_deg(yHat, y)
+                total_val_loss += val_loss.item()
+                batch_count += 1
+            mean_val_loss_per_movie = total_val_loss / batch_count
             log['time'].append(datetime.now())
             log['epoch'].append(epoch)
-            log['val_loss'].append(val_loss)
+            log['val_loss'].append(mean_val_loss_per_movie)
+            log['train_loss'].append(mean_train_loss_per_movie)
+            log['val_trans_delta_deg'].append(val_delta_deg['trans'])
+            log['val_rot_delta_deg'].append(val_delta_deg['rot'])
             save_checkpoint(model, optimizer, hyperparms, init_dict, log)
-            plot_loss(log)
-            
-        print(f"Epoch [{epoch}/{hyperparms['num_epochs']}], Train mLoss: {loss.item()*1000:.4f}, Val mLoss: {val_loss*1000 / len(val_loader):.4f}")
+            egomotnet_plot.plot_progress(log)
 
     print("Training complete!")
 
     # Evaluate on test data
     test_loss = 0.0
     with torch.no_grad():
-        for batch_data, batch_targets in test_loader:
-            batch_data, batch_targets = batch_data.to(device), batch_targets.to(device)  # Move data to the device
-            outputs = model(batch_data)
-            test_loss += criterion(outputs, batch_targets).item()
+        for X, y in test_loader:
+            X, y = X.to(device), y.to(device)  # Move data to the device
+            test_loss += criterion(model(X), y).item()
 
     print(f"Test mLoss: {test_loss*1000 / len(test_loader):.4f}")
 
@@ -200,52 +239,45 @@ def init_from_checkpoint(checkpoint):
     model.load_state_dict(checkpoint['model_state'])
     model.eval() # Set the model to evaluation mode
     optimizer = optim.Adam(model.parameters(), lr=checkpoint['hyperparms']['learning_rate'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state'])
     return (model, optimizer)
 
 
-def plot_loss(log, initialize=False):
-    global figures
-    if initialize or figures['loss_fig'] is None or figures['loss_ax'] is None:
-        plt.close()  # Close the existing plot if any
-        figures['loss_fig'], figures['loss_ax'] = plt.subplots(figsize=(10, 5))  # Create new figure and axes
-         
-    # Plot the new data
-    plt.cla()
-    figures['loss_ax'].set_xlabel('Epoch')  # Set x-axis label
-    figures['loss_ax'].set_ylabel('Loss')  # Set y-axis label
-    figures['loss_ax'].set_title('Loss vs. Epochs')  # Set title
-    figures['loss_ax'].grid(True)  # Enable grid
-    figures['loss_ax'].semilogy(log['epoch'], log['val_loss'], marker='o', linestyle='-', color='purple')
-    plt.draw()  # Redraw the current figure
-    plt.pause(0.1)  # Pause to update the plot
+
+
 
  
 def main():
-    torch.cuda.empty_cache()
     
-    # Prevent Windows from going to sleep
-    lgg.computer_sleep('prevent')
+    try: 
+        # Try release some GPU RAM. But the best way is to restart Spyder
+        torch.cuda.empty_cache()
+        # Prevent Windows from going to sleep
+        lgg.computer_sleep('disable')
     
-    data_folder_path = os.path.dirname(__file__)+'_data'
-    dataset = OpticFlowDotsDataset(data_folder_path)
+        # Load the dataset from the default folder
+        data_folder_path = os.path.dirname(__file__)+'_data'
+        data = OpticFlowDotsDataset(data_folder_path)
     
-    # select a subset for testing
-    dataset = Subset(dataset, random.sample(range(len(dataset) + 1), 500))
+        # select a subset of data for quick testing
+        data = Subset(data, random.sample(range(len(data) + 1), 100))
     
-    checkpoint = load_checkpoint('MOST_RECENT_IN_DEFAULT_FOLDER')
-    if checkpoint == None:
-        print("Starting training from scratch ...")
-        train(dataset)
-    else:
-        print("Continuing training at epoch {} ...".format(checkpoint['log']['epoch'][-1]))
-        train(dataset,checkpoint)
-    
-    # Allow the system to sleep again
-    lgg.computer_sleep('allow')
-    
-    torch.cuda.empty_cache()
-    
+        checkpoint = load_checkpoint('MOST_RECENT_IN_DEFAULT_FOLDER')
+        if checkpoint == None:
+            print("Starting the training from scratch ...")
+            train(data)
+            # note: default hyperparameters are defined in train()
+        else:
+            print("Resuming training at epoch {} ...".format(checkpoint['log']['epoch'][-1]))
+            train(data,checkpoint)
+    except KeyboardInterrupt:
+        print("Interupted with CTRL-C")
+    finally:
+        lgg.computer_sleep('enable')
+        # Allow the system to sleep again
+        lgg.computer_sleep('enable')
+        torch.cuda.empty_cache()
+        
     
 if __name__=="__main__":
     main()
