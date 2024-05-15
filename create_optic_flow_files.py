@@ -12,6 +12,7 @@ import inspect
 import time
 import the_luggage as lgg
 from multiprocessing import Pool
+import keyboard
 
 
 def random_unit_vector(n: int=3):
@@ -26,7 +27,7 @@ def random_unit_vector(n: int=3):
 def create_optic_flow_files(n: int=100000,
                             trans_speed_minmax: np.array=np.array([0.02,0.02]),
                             rot_dpf_minmax: np.array=np.array([0,0]),
-                            savedir: str='S:\optic_flow_dots_data'): # str=os.path.dirname(__file__)+'_dataTEST'
+                            savedir: str='F:\optic_flow_dots_data'): # str=os.path.dirname(__file__)+'_dataTEST'
     start_second=time.time()
     
     print(f'N={n}')
@@ -72,22 +73,26 @@ def create_optic_flow_files(n: int=100000,
     print("[{}] Done".format(inspect.currentframe().f_code.co_name))
     
         
-if __name__=="__main__":
+def main():
     lgg.computer_sleep('disable')
     try:
         n_workers = 6 
+        print(f"Starting pool of {n_workers} workers.")
         with Pool(n_workers) as p:
-            print("Start pool")
-            result = p.imap(create_optic_flow_files, [100000] *n_workers)
-            print("Start timer")
-            time.sleep(3600*24*7)
-            print("Stop timer")    
-    except KeyboardInterrupt:
-        print("[{}] Interupted with CTRL-C".format(inspect.currentframe().f_code.co_name))
-    except: 
-        raise Exception('Something happened and the processes stopped')
+            print("Press and hold ESC-key to cancel early.")
+            p.imap(create_optic_flow_files, [500000] *n_workers)
+            while True: 
+                time.sleep(2)
+                if keyboard.is_pressed('esc'):
+                    print(f"ESC-key pressed. Sending terminate signal to all {n_workers} workers ...")
+                    break
     finally:
         lgg.computer_sleep('enable')
-        p.terminate()
+        p.terminate()  
         p.join()
-        print('[-: The End :-]')
+        print('[-: The End :-]')   
+    
+    
+if __name__=="__main__":
+    main()
+   
