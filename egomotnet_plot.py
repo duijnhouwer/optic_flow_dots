@@ -7,6 +7,7 @@ Created on Thu May  2 22:02:39 2024
 
 import torch
 import matplotlib.pyplot as plt
+from tkinter import Tk, filedialog
 
 
 # Initialize global figure and axis variables
@@ -47,9 +48,50 @@ def delta_deg(yHat: torch.Tensor, y: torch.Tensor) -> dict:
 
     return out
 
-#def plot_angular_error_distributions(log, initialize=False):
-    
 
+
+def plot_test_result(filename=None):
+    """
+    Plots histograms of translation and rotation error degrees in a single panel from a given file.
+
+    Parameters:
+    filename (str): Path to the file containing a dictionary with key 'test_result' 
+                    If None, opens a file dialog to select a file.
+    """
+    
+    # Check if filename is None and open file dialog if it is
+    if filename is None:
+        root = Tk()
+        root.withdraw()  # Hide the main window
+        filename = filedialog.askopenfilename(
+            initialdir=".",  # Open in current directory
+            title="Select file",
+            filetypes=(("PyTorch Files", "finaltest*"),)  # Files starting with 'finaltest'
+        )
+        root.destroy()
+
+    # Load the dictionary from the file
+    if filename:  # Proceed only if a file was selected
+        data = torch.load(filename)['test_result']
+    else:
+        print("No file selected.")
+        return
+
+    # Ensure the tensors are on CPU and convert to numpy for plotting
+    trans_errors = data['trans'].cpu().numpy()
+    rot_errors = data['rot'].cpu().numpy()
+
+    # Create a figure and an axes object
+    plt.figure(figsize=(10, 6))
+    plt.hist(trans_errors, bins=30, alpha=0.7, label='Translation Errors')
+    plt.hist(rot_errors, bins=30, alpha=0.7, label='Rotation Errors')
+
+    # Annotate and show
+    plt.title('Histogram of Translation and Rotation Errors')
+    plt.xlabel('Error (degrees)')
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.show()
 
 
 def plot_progress(log, initialize=False):
