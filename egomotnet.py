@@ -146,66 +146,77 @@ def train(data, checkpoint=None):
         start_epoch = log['epoch'][-1]+1
     
 
-    for epoch in range(start_epoch, hyperparms['num_epochs']):
-        model.train() # Set the model to training mode
-        total_train_loss = 0.0
-        batch_count  = 0
-        for X, y in train_loader:
-            X, y = X.to(device), y.to(device)  # Move data to the device         
-            optimizer.zero_grad()
-            train_loss = criterion(model(X), y)
-            train_loss.backward()
-            optimizer.step()
-            total_train_loss += train_loss.item()
-            batch_count += 1
-        mean_train_loss_per_movie = total_train_loss / batch_count
-           
-        model.eval() # Set the model to evaluation mode
-        with torch.no_grad():
-            total_val_loss = 0.0
-            batch_count = 0
-            for X, y in val_loader:
-                X, y = X.to(device), y.to(device)  # Move data to the device 
-                yHat = model(X)
-                val_loss = criterion(yHat, y)
-                val_delta_deg = egomotnet_plot.delta_deg(yHat, y)
-                total_val_loss += val_loss.item()
+`   try
+        for epoch in range(start_epoch, hyperparms['num_epochs']):
+            # Train the model
+            model.train() # Set the model to training mode
+            total_train_loss = 0.0
+            batch_count  = 0
+            for X, y in train_loader:
+                X, y = X.to(device), y.to(device)  # Move data to the device         
+                optimizer.zero_grad()
+                train_loss = criterion(model(X), y)
+                train_loss.backward()
+                optimizer.step()
+                total_train_loss += train_loss.item()
                 batch_count += 1
-            mean_val_loss_per_movie = total_val_loss / batch_count
-            log['time'].append(datetime.now())
-            log['epoch'].append(epoch)
-            log['val_loss'].append(mean_val_loss_per_movie)
-            log['train_loss'].append(mean_train_loss_per_movie)
-            log['val_trans_delta_deg'].append(val_delta_deg['trans'])
-            log['val_rot_delta_deg'].append(val_delta_deg['rot'])
-            save_checkpoint(model, optimizer, hyperparms, init_dict, log)
-            egomotnet_plot.plot_progress(log)
+            mean_train_loss_per_movie = total_train_loss / batch_count
+            
+            # Validate the model
+            model.eval() # Set the model to evaluation mode
+            with torch.no_grad():
+                total_val_loss = 0.0
+                batch_count = 0
+                for X, y in val_loader:
+                    X, y = X.to(device), y.to(device)  # Move data to the device 
+                    yHat = model(X)
+                    val_loss = criterion(yHat, y)
+                    val_delta_deg = egomotnet_plot.delta_deg(yHat, y)
+                    total_val_loss += val_loss.item()
+                    batch_count += 1
+                mean_val_loss_per_movie = total_val_loss / batch_count
+                log['time'].append(datetime.now())
+                log['epoch'].append(epoch)
+                log['val_loss'].append(mean_val_loss_per_movie)
+                log['train_loss'].append(mean_train_loss_per_movie)
+                log['val_trans_delta_deg'].append(val_delta_deg['trans'])
+                log['val_rot_delta_deg'].append(val_delta_deg['rot'])
+                save_checkpoint(model, optimizer, hyperparms, init_dict, log)
+                egomotnet_plot.plot_progress(log)
+                
+            print("Training complete!")
+        except: 
+            print(f'Training interrupted at epoch {epoch}')
+        finally:
+            print("Testing the model")
+            test_result = dict('loss': 0.0, 'y': torch.empty(len(test_loader), 6), 'yHat': torch.empty(len(test_loader), 6))
+            with torch.no_grad():
+                for i, X, y in enumerate(test_loader):
+                    X, y = X.to(device), y.to(device)  # Move data to the device
+                    yHat = model(X)
+                    test_result['test_loss'] += criterion(yHat, y).item()
+                    test_result['y'][i] = y;
+                    test_result['yHat'][i] = yHat;
+            filename = save_checkpoint(model, optimizer, hyperparms, init_dict, log, test_result)
+            egomotnet_plot.plot_test_result(filename)
+            print(f"Mean testing loss: {test_loss / len(test_loader):.9f}")
 
-    print("Training complete!")
 
-    # Evaluate on test data
-    test_loss = 0.0
-    with torch.no_grad():
-        for X, y in test_loader:
-            X, y = X.to(device), y.to(device)  # Move data to the device
-            test_loss += criterion(model(X), y).item()
-
-    print(f"Test mLoss: {test_loss*1000 / len(test_loader):.4f}")
-
-
-
-def save_checkpoint(model, optimizer, hyperparms, init_dict, log):
+def save_checkpoint(model, optimizer, hyperparms, init_dict, log, test_result=None):
     now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
     folder = os.path.dirname(__file__)+'_models'
-    checkpoint_filename = os.path.join(folder,"checkpoint_{}_epoch_{}.pth".format(now_str,log['epoch'][-1]))
+    mode = 'checkpoint' if test_result==None else 'finaltest'    
+    filename = os.path.join(folder,"{}_{}_epoch_{}.pth".format(mode,now_str,log['epoch'][-1]))
     torch.save({
         'model_state': model.state_dict(),
         'optimizer_state': optimizer.state_dict(),
         'hyperparms': hyperparms,
         'init_dict': init_dict, 
         'log': log
-         }, checkpoint_filename)
-    print("Saved: {}".format(checkpoint_filename))
+        'test_result': test_result
+         }, filename)
+    print("Saved: {}".format(filename))
+    return filename
     
 
 def load_checkpoint(file_path: str=""):
@@ -245,7 +256,6 @@ def init_from_checkpoint(checkpoint):
 
 
 
-
  
 def main():
     
@@ -260,7 +270,9 @@ def main():
         data = OpticFlowDotsDataset(data_folder_path)
     
         # select a subset of data for quick testing
-        data = Subset(data, random.sample(range(len(data) + 1), 100))
+        n_to_test = 100 # zero means test all stimuli
+        if n_to_test>0:
+            data = Subset(data, random.sample(range(len(data) + 1), n_to_test))
     
         checkpoint = load_checkpoint('MOST_RECENT_IN_DEFAULT_FOLDER')
         if checkpoint == None:
