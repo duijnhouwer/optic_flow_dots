@@ -27,7 +27,7 @@ def delete_checkpoints():
     checkpoint_files = glob.glob(search_pattern)
     
     if len(checkpoint_files)==0:
-        print(f"No checkpoint files to delete in {models_folder_path}")
+        print(f"No 'checkpoint*.pth' files to delete in '{models_folder_path}'")
     else:    
         # Loop through the list of .pth files and send each one to the Recycle Bin
         for file_path in checkpoint_files:

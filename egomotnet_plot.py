@@ -8,16 +8,22 @@ Created on Thu May  2 22:02:39 2024
 import torch
 import matplotlib.pyplot as plt
 from tkinter import Tk, filedialog
+import numpy as np
+import os
 
 
 # Initialize global figure and axis variables
 figures={'loss_fig': None, 'loss_ax': None}
 
 
-def delta_deg(yHat: torch.Tensor, y: torch.Tensor) -> dict:
+def delta_deg(*, y: torch.Tensor=None, yHat: torch.Tensor=None) -> dict:
     # Check if inputs are PyTorch tensors
     if not (isinstance(yHat, torch.Tensor) and isinstance(y, torch.Tensor)):
-        raise TypeError("Both yHat and y must be PyTorch tensors.")
+        raise TypeError("Both y and yHat must be PyTorch tensors.")
+    if y is None or yHat is None:
+        raise ValueError("Both y and yHat need to be explicitly provided!")
+    if y.device != torch.device('cpu') or yHat.device != torch.device('cpu'):
+        raise ValueError("Both y and yHat must be on the CPU memory space")
 
     # Returns the angles between the predicted and the target rotation and translation vectors
     #
@@ -72,22 +78,25 @@ def plot_test_result(filename=None):
 
     # Load the dictionary from the file
     if filename:  # Proceed only if a file was selected
-        data = torch.load(filename)['test_result']
+        test_result = torch.load(filename)['test_result'] 
+        error_deg = delta_deg(y=test_result['y'],yHat=test_result['yHat'])
     else:
         print("No file selected.")
         return
 
     # Ensure the tensors are on CPU and convert to numpy for plotting
-    trans_errors = data['trans'].cpu().numpy()
-    rot_errors = data['rot'].cpu().numpy()
+    trans_errors = error_deg['trans'].numpy()
+    rot_errors = error_deg['rot'].numpy()
 
     # Create a figure and an axes object
     plt.figure(figsize=(10, 6))
-    plt.hist(trans_errors, bins=30, alpha=0.7, label='Translation Errors')
-    plt.hist(rot_errors, bins=30, alpha=0.7, label='Rotation Errors')
+    if not np.all(np.isnan(trans_errors)):
+        plt.hist(trans_errors, bins=50, alpha=0.7, label='Translation Errors')
+    if not np.all(np.isnan(rot_errors)):
+        plt.hist(rot_errors, bins=50, alpha=0.7, label='Rotation Errors')
 
     # Annotate and show
-    plt.title('Histogram of Translation and Rotation Errors')
+    plt.title(f'Histogram of Angular Errors\n{os.path.basename(filename)}')
     plt.xlabel('Error (degrees)')
     plt.ylabel('Frequency')
     plt.legend()

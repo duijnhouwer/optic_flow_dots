@@ -52,25 +52,27 @@ def main():
     
     model, optimizer = init_from_checkpoint(checkpoint)
     model.to('cpu')
+    model.eval()
     
     data_folder_path = os.path.dirname(__file__)+'_data'
     dataset = OpticFlowDotsDataset(data_folder_path)
+    show_loader = DataLoader(dataset, batch_size=1, shuffle=True)
     
     while True:
-        show_loader = DataLoader(dataset, batch_size=1, shuffle=True)
-        for one_batch_data, one_batch_targets in show_loader:
-            break
+        
+        #for one_batch_data, one_batch_targets in show_loader:
+        #    break
     
         with torch.no_grad():
-            for batch_data, batch_targets in show_loader:
-                batch_data, batch_targets = batch_data.to('cpu'), batch_targets.to('cpu')  # Move data to the device
-                model_response = model(batch_data)
-                loss = checkpoint['hyperparms']['loss_fnc'](model_response, batch_targets)
+            for X, y in show_loader:
+                X, y = X.to('cpu'), y.to('cpu')  # Move data to the device
+                yHat = model(X)
+                loss = checkpoint['hyperparms']['loss_fnc'](yHat, y)
                 break
         
-            data_dict = {'stimulus': batch_data.squeeze(0), 
-                         'target_response': batch_targets.squeeze(0),
-                         'actual_response': model_response.squeeze(0),
+            data_dict = {'stimulus': X.squeeze(0), 
+                         'target_response': y.squeeze(0),
+                         'actual_response': yHat.squeeze(0),
                          'loss': loss.item()}
     
         upon_animation_close="quit"

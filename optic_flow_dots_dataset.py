@@ -43,7 +43,7 @@ class OpticFlowDotsDataset(Dataset):
         flow_tensor = torch.load(file_path)
         
         # Convert from uint8 [0..255] to float32 [0..1]
-        flow_tensor = flow_tensor.to(torch.float32) / 255
+        flow_tensor = flow_tensor.to(torch.float32) / 255.0
 
         # Extract the translation and rotation parameters from the filename
         transrot_xyz = extract_target_response_from_filename(file_name)

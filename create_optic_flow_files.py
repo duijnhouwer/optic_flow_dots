@@ -84,10 +84,11 @@ def main():
             while True: 
                 time.sleep(2)
                 if keyboard.is_pressed('esc'):
-                    print(f"ESC-key pressed. Sending terminate signal to all {n_workers} workers ...")
+                    print("ESC-key pressed.")
                     break
     finally:
         lgg.computer_sleep('enable')
+        print(f"Sending terminate signal to all {n_workers} workers ...")
         p.terminate()  
         p.join()
         print('[-: The End :-]')   

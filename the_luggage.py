@@ -9,6 +9,8 @@ from tkinter import filedialog
 from optic_flow_dots_dataset import extract_target_response_from_filename
 import torch
 import os
+import sys
+
 
 
     
@@ -156,4 +158,25 @@ def computer_sleep(state: str=None):
             raise ValueError('State must be "disable" or "enable"')
     else:
         raise Exception('I implemented computer_sleep only for Windows so far')
-    
+
+
+def print_progress_bar(current, maxval, prefix='', suffix='', decimals=1, length=30, fill='▓'):
+    """
+    Call in a loop to create terminal progress bar.
+    @params:
+        current     - Required  : current value (float)
+        maxval      - Required  : maximum value (float)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+    """
+    #█▓░
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (current / float(maxval)))
+    filled_length = int(length * current // maxval)
+    bar = fill * filled_length + '░' * (length - filled_length)
+    sys.stdout.write(f'\r{prefix} {bar} {percent}% {suffix}')
+    sys.stdout.flush()
+    if current/maxval >= 1.0: 
+        print()
