@@ -108,7 +108,7 @@ def create_data_loaders(data,batch_size):
     return (train_loader, val_loader, test_loader)
 
 
-def train(data, n_epochs=10, checkpoint=None):
+def train(data, n_epochs=100, checkpoint=None):
       
     model, optimizer, hyperparms, init_dict, log, start_epoch = init_from_checkpoint(checkpoint, data[0])                  
     train_loader, val_loader, test_loader = create_data_loaders(data,hyperparms['batch_size'])
@@ -237,15 +237,15 @@ def init_from_checkpoint(cp, datum):
 
 
 def create_startpoint(datum) -> dict:
-    return {'hyperparms': {'batch_size': 35, 
+    return {'hyperparms': {'batch_size': 30, 
                            'learning_rate': 0.001, 
                            'loss_fnc': nn.MSELoss(reduction='mean')}
             ,'init_dict': {'stimulus_shape': (1,)+tuple(datum[0].shape),
                            'n_filters': 32,
-                           'filter_shape': (datum[0].shape[1],5,5),
+                           'filter_shape': (datum[0].shape[1],13,13),
                            'pool_widhei': 6,
                            'fc1_n_out': 384,
-                           'fc2_n_out': 48,
+                           'fc2_n_out': 60,
                            'final_n_out': len(datum[1])}
             ,'log': {'time': [], 'epoch': [], 'val_loss': [], 'train_loss': []}
             ,'model_state': None
@@ -266,12 +266,12 @@ def main():
         data = OpticFlowDotsDataset(data_folder_path)
     
         # select a subset of data for quick testing
-        n_to_test = 400 # <=0 means test all stimuli
+        n_to_test = 30*1000 # <=0 means test all stimuli
         if n_to_test>0:
             data = Subset(data, random.sample(range(len(data) + 1), n_to_test))
        
         # Resume training from latest checkpoint
-        train(data,n_epochs=3,checkpoint=load_checkpoint('MOST_RECENT_IN_DEFAULT_FOLDER'))
+        train(data,n_epochs=10,checkpoint=load_checkpoint('MOST_RECENT_IN_DEFAULT_FOLDER'))
     except KeyboardInterrupt:
         print("Interupted with CTRL-C")
     finally:
