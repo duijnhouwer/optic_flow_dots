@@ -39,21 +39,30 @@ class OpticFlowDotsDataset(Dataset):
         file_name = self.file_list[idx]
         file_path = os.path.join(self.folder_path, file_name)
 
-        # Load the optic flow dots tensor from the file
-        flow_tensor = torch.load(file_path)
-        
-        # Convert from uint8 [0..255] to float32 [0..1]
-        flow_tensor = flow_tensor.to(torch.float32) / 255.0
-
         # Extract the translation and rotation parameters from the filename
         transrot_xyz = extract_target_response_from_filename(file_name)
 
-        # Apply any specified transform
-        if self.transform:
-            transrot_xyz = self.transform(transrot_xyz)
+        # Load the optic flow dots tensor from the file
+        flow_tensor = torch.load(file_path)
+
+        # Randomly rotate by 0,90,180,or 270 degrees
+        #torch.rot90(movie_batch, k=torch.randint(0, 4, (1,)), dims=(3, 4))
+        # ALSO ROTATE transrot_xyz ACCORDINGLY!
+
+
+        # Convert from uint8 [0..255] to float32 [0..1]
+        flow_tensor = flow_tensor.to(torch.float32) / 255.0
+
+
+
+        # # Apply any specified transform
+        # if self.transform:
+        #     flow_tensor = self.transform(flow_tensor)
+
+
 
         return flow_tensor, transrot_xyz
-    
+
 def extract_target_response_from_filename(input_string: str):
     # Use regular expression to find the part between brackets
     match = re.search(r"\[([-+]\d+\.\d+(_[-+]?\d+\.\d+)*)\]", input_string)

@@ -10,10 +10,11 @@ from optic_flow_dots_dataset import extract_target_response_from_filename
 import torch
 import os
 import sys
+from datetime import datetime
 
 
 
-    
+
 def select_file(initialdir: str=""):
     """Open a file dialog to select the tensor file."""
     root = tk.Tk()
@@ -25,21 +26,21 @@ def select_file(initialdir: str=""):
         file_path = filedialog.askopenfilename(initialdir=initialdir)
     root.destroy()  # Close the Tkinter root window after file selection
     return file_path
-        
-        
-def load_stimulus_and_target_response(file_path: str=""):   
+
+
+def load_stimulus_and_target_response(file_path: str=""):
     if file_path=="":
         initialdir=os.path.dirname(__file__)+'_data'
         file_path=select_file(initialdir=initialdir)
         if not file_path:
-            file_path="No file selected"        
+            file_path="No file selected"
     if file_path != "No file selected":
         stimulus = torch.load(file_path)
         target_response = extract_target_response_from_filename(input_string=file_path)
     else:
         stimulus, target_response = None
     return {'stimulus': stimulus, 'target_response': target_response, 'file_path': file_path}
-    
+
 
 def format_duration(seconds):
     seconds=round(seconds)
@@ -59,6 +60,18 @@ def format_duration(seconds):
         str=f"{seconds} seconds"
     return str
 
+def now_string(format_str):
+    now = datetime.now()
+    if format_str == "date_time":
+        return now.strftime("%Y-%m-%d %H:%M:%S")
+    elif format_str == "time_only":
+        return now.strftime("%H:%M:%S")
+    elif format_str == "date_time_compact":
+        return now.strftime("%Y%m%d_%H%M%S")
+    elif format_str == "datetime_compact":
+        return now.strftime("%Y%m%d%H%M%S")
+    else:
+        return now.strftime(format_str)
 
 def conv3d_output_shape(input_shape, n_output_chans, kernel_shape, padding=0, stride=1, dilation=1):
     """
@@ -119,10 +132,10 @@ def maxpool3d_output_shape(input_shape, kernel_size, stride=None, padding=0, dil
     Returns:
         tuple: The output shape of the max pooling layer (N, C, D_out, H_out, W_out).
     """
-    
+
     if stride==None:
         stride = kernel_size # this is the MaxPool3d default behavior
-    
+
     # Ensure stride, padding, and dilation are tuples
     if isinstance(stride, int):
         stride = (stride, stride, stride)
@@ -130,13 +143,13 @@ def maxpool3d_output_shape(input_shape, kernel_size, stride=None, padding=0, dil
         padding = (padding, padding, padding)
     if isinstance(dilation, int):
         dilation = (dilation, dilation, dilation)
-        
+
     N, C, D, H, W = input_shape
     kD, kH, kW = kernel_size
     sD, sH, sW = stride
     pD, pH, pW = padding
     dD, dH, dW = dilation
-    
+
     D_out = ((D + 2 * pD - dD * (kD - 1) - 1) // sD) + 1
     H_out = ((H + 2 * pH - dH * (kH - 1) - 1) // sH) + 1
     W_out = ((W + 2 * pW - dW * (kW - 1) - 1) // sW) + 1
@@ -144,7 +157,7 @@ def maxpool3d_output_shape(input_shape, kernel_size, stride=None, padding=0, dil
     return (N, C, D_out, H_out, W_out)
 
 
-def computer_sleep(state: str=None):      
+def computer_sleep(state: str=None):
     import platform
     if platform.system()=="Windows":
         import ctypes
@@ -178,5 +191,5 @@ def print_progress_bar(current, maxval, prefix='', suffix='', decimals=1, length
     bar = fill * filled_length + '░' * (length - filled_length)
     sys.stdout.write(f'\r{prefix} {bar} {percent}% {suffix}')
     sys.stdout.flush()
-    if current/maxval >= 1.0: 
+    if current/maxval >= 1.0:
         print()
