@@ -10,13 +10,13 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split, Subset
 from optic_flow_dots_dataset import OpticFlowDotsDataset
 import the_luggage as lgg
-import math
 import os
 import fnmatch
 import random
 from datetime import datetime
 import egomotnet_plot
 import time
+import multiprocessing
 
 class EgoMotNet(nn.Module):
 
@@ -25,40 +25,14 @@ class EgoMotNet(nn.Module):
         # Check that the hyperparameter dictionary is valid
         verify_hparams(hparams)
 
-        # Calculate the output shape of the Conv3d and MaxPool3d layers
-        conv_out_bcfhw = lgg.conv3d_output_shape(hparams['X_shape'], hparams['n_filters']*hparams['n_frame_orientations'], hparams['filter_shape'])
-        pool_kernel_fhw = hparams['pool_widhei'] #(conv_out_bcfhw[2], hparams['pool_widhei'], hparams['pool_widhei']) #hparams['pool_widhei'] #
-        #pool_out_bcfhw = lgg.maxpool3d_output_shape(conv_out_bcfhw, pool_kernel_fhw)
-
-        # Add hparam n_frame_orientations so it can be referenced in forward()
-        self.n_frame_orientations = hparams['n_frame_orientations']
-
         # Define the model architecture
         super(EgoMotNet, self).__init__()
-        self.conv = nn.Conv3d(hparams['X_shape'][1], hparams['n_filters'], hparams['filter_shape'])
-        self.relu = nn.ReLU()
-        self.pool = nn.MaxPool2d(pool_kernel_fhw)
-        #self.fc1 = nn.Linear(math.prod(pool_out_bcfhw[1:]), hparams['fc1_n_out'])
         self.fc1 = nn.LazyLinear(hparams['fc1_n_out'])
+        self.relu = nn.ReLU()
         self.fc2 = nn.Linear(hparams['fc1_n_out'], hparams['fc2_n_out'])
         self.fc3 = nn.Linear(hparams['fc2_n_out'], hparams['final_n_out'])
 
     def forward(self, x):
-        if self.n_frame_orientations == 1:
-            x = self.conv(x)
-        elif self.n_frame_orientations == 6:
-            x0 = self.conv(x)
-            x90 = batch_rotate(self.conv(batch_rotate(x, 90)), -90)
-            x180 = batch_rotate(self.conv(batch_rotate(x, 180)), -180)
-            x270 = batch_rotate(self.conv(batch_rotate(x, 270)), -270)
-            xUD = batch_flipud(self.conv(batch_flipud(x)))
-            xLR = batch_fliplr(self.conv(batch_fliplr(x)))
-            x = torch.cat((x0, x90, x180, x270, xUD, xLR), dim=1)
-        else:
-            raise ValueError("n_flips_and_turns must be 1 or 6")
-        x = x.squeeze(2)
-        x = self.relu(x)
-        x = self.pool(x)
         x = x.view(x.shape[0], -1)  # Flatten for fully connected layer
         x = self.fc1(x)
         x = self.relu(x)
@@ -70,35 +44,13 @@ class EgoMotNet(nn.Module):
 def verify_hparams(hp):
     if hp is None:
         raise ValueError("Must provide initialization dictionary")
-    if len(hp['X_shape']) != 5 or not all(isinstance(x, int) and x > 0 for x in hp['X_shape']):
-        raise ValueError("X_shape must be a 5-element tuple of positive ints")
-    if not isinstance(hp['n_filters'], int) or hp['n_filters'] <= 0:
-        raise ValueError("n_filters must be a positive int")
-    if len(hp['filter_shape']) != 3 or not all(isinstance(x, int) and x > 0 for x in hp['filter_shape']):
-        raise ValueError("filter_shape must be a 3-element tuple of positive ints")
-    if not isinstance(hp['pool_widhei'], int) or hp['pool_widhei'] <= 0:
-        raise ValueError("pool_widhei must be a positive int")
     if not isinstance(hp['fc1_n_out'], int) or hp['fc1_n_out'] <= 0:
         raise ValueError("fc1_n_out must be a positive int")
     if not isinstance(hp['fc2_n_out'], int) or hp['fc2_n_out'] <= 0:
         raise ValueError("fc2_n_out must be a positive int")
     if not isinstance(hp['final_n_out'], int) or hp['final_n_out'] <= 0:
         raise ValueError("final_n_out must be a positive int")
-    if hp['n_frame_orientations']!=1 and hp['n_frame_orientations']!=6:
-        raise ValueError("n_frame_orientations must be 1 or 6")
 
-
-def batch_rotate(movie_batch, angle_deg):
-    # rotate the frames of the movies by angle_deg
-    if angle_deg % 90 != 0:
-        raise ValueError('angle_deg must be a multiple of 90')
-    return torch.rot90(movie_batch, k=int(angle_deg / 90.0), dims=(3, 4))
-
-def batch_flipud(movie_batch):
-    return torch.flip(movie_batch, dims=[3])
-
-def batch_fliplr(movie_batch):
-    return torch.flip(movie_batch, dims=[4])
 
 def create_data_loaders(data, batch_size):
     samples_n = len(data)
@@ -108,9 +60,11 @@ def create_data_loaders(data, batch_size):
     train_data, val_data, test_data = random_split(data, (train_n, val_n, test_n))
 
     # Initialize the data loaders.
-    train_loader = DataLoader(train_data, batch_size, drop_last=True, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size, drop_last=True)
-    test_loader = DataLoader(test_data, batch_size, drop_last=True)
+    # num_workers = multiprocessing.cpu_count() // 2
+    num_workers = 12
+    train_loader = DataLoader(train_data, batch_size, drop_last=True, shuffle=True, num_workers=num_workers)
+    val_loader = DataLoader(val_data, batch_size, drop_last=True, num_workers=num_workers)
+    test_loader = DataLoader(test_data, batch_size, drop_last=True, num_workers=num_workers)
 
     if len(train_loader) == 0:
         raise ValueError(f'Number of samples in train_data ({len(train_data)}) is less than the batch size ({train_loader.batch_size}).')
@@ -162,7 +116,7 @@ def train(data, n_epochs=100, ckpt=None):
     except KeyboardInterrupt:
         print("\n*** Training canceled by user")
     except Exception as e:
-        print(f"Error during training: {e}")
+        raise Exception(f"Error during training: {e}")
     finally:
         # Test the model
         n_rows = len(test_loader) * test_loader.batch_size
@@ -251,19 +205,14 @@ def init_from_checkpoint(ckpt, datum=None):
 def create_startpoint(datum):
     return {
         'hparams': {
-            'batch_size': 12,
+            'batch_size': 100,
             'learning_rate': 0.001,
             'loss_fnc': nn.MSELoss(reduction='mean'),
-            'X_shape': (1,) + tuple(datum[0].shape),
-            'n_frame_orientations': 1,
-            'n_filters': 256,
-            'filter_shape': (datum[0].shape[1], 9, 9),
-            'pool_widhei': 6,
-            'fc1_n_out': 512,
-            'fc2_n_out': 32,
+            'fc1_n_out': 600,
+            'fc2_n_out': 60,
             'final_n_out': len(datum[1])
         },
-        'log': {'time': [], 'epoch': [], 'val_loss': [], 'train_loss': []},
+        'log': {'time': [], 'epoch': [], 'train_loss': [], 'val_loss': []},
         'model_state': None,
         'optimizer_state': None
     }
@@ -276,12 +225,12 @@ def main():
         data_folder_path = os.path.dirname(__file__) + '_data'
         data = OpticFlowDotsDataset(data_folder_path)
 
-        n_to_test = 1000 * 1000  # <=0 means test all stimuli
+        n_to_test = 2000 # <=0 means test all stimuli
         if n_to_test > 0:
             data = Subset(data, random.sample(range(len(data) + 1), n_to_test))
 
         print("Training start time: "+lgg.now_string('date_time'))
-        train(data, n_epochs=100, ckpt=load_checkpoint('MOST_RECENT_IN_DEFAULT_FOLDER'))
+        train(data, n_epochs=1000, ckpt=load_checkpoint('MOST_RECENT_IN_DEFAULT_FOLDER'))
     except KeyboardInterrupt:
         print("Interrupted with CTRL-C")
     finally:

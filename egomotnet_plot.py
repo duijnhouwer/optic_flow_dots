@@ -61,10 +61,10 @@ def plot_test_result(filename=None):
     Plots histograms of translation and rotation error degrees in a single panel from a given file.
 
     Parameters:
-    filename (str): Path to the file containing a dictionary with key 'test_result' 
+    filename (str): Path to the file containing a dictionary with key 'test_result'
                     If None, opens a file dialog to select a file.
     """
-    
+
     # Check if filename is None and open file dialog if it is
     if filename is None:
         root = Tk()
@@ -78,7 +78,7 @@ def plot_test_result(filename=None):
 
     # Load the dictionary from the file
     if filename:  # Proceed only if a file was selected
-        test_result = torch.load(filename)['test_result'] 
+        test_result = torch.load(filename)['test_result']
         error_deg = delta_deg(y=test_result['y'],yHat=test_result['yHat'])
     else:
         print("No file selected.")
@@ -108,7 +108,7 @@ def plot_progress(log, initialize=False):
     if initialize or figures['loss_fig'] is None or figures['loss_ax'] is None:
         plt.close()  # Close the existing plot if any
         figures['loss_fig'], figures['loss_ax'] = plt.subplots(figsize=(10, 5))  # Create new figure and axes
-         
+
     # Plot the new data
     plt.cla()
     figures['loss_ax'].set_xlabel('Epoch')  # Set x-axis label
@@ -117,7 +117,6 @@ def plot_progress(log, initialize=False):
     figures['loss_ax'].grid(True)  # Enable grid
     figures['loss_ax'].semilogy(log['epoch'], log['val_loss'], marker='o', linestyle='-', color='violet', label='validation')
     figures['loss_ax'].semilogy(log['epoch'], log['train_loss'], marker='o', linestyle='-', color='teal', label='training')
-    plt.legend(loc='upper right') 
+    plt.legend(loc='upper right')
     plt.draw()  # Redraw the current figure
     plt.pause(0.1)  # Pause to update the plot
-    

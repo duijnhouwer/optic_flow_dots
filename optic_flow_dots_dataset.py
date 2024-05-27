@@ -45,36 +45,21 @@ class OpticFlowDotsDataset(Dataset):
         # Load the optic flow dots tensor from the file
         flow_tensor = torch.load(file_path)
 
-        # Randomly rotate by 0,90,180,or 270 degrees
-        #torch.rot90(movie_batch, k=torch.randint(0, 4, (1,)), dims=(3, 4))
-        # ALSO ROTATE transrot_xyz ACCORDINGLY!
-
-
-        # Convert from uint8 [0..255] to float32 [0..1]
-        flow_tensor = flow_tensor.to(torch.float32) / 255.0
-
-
-
-        # # Apply any specified transform
-        # if self.transform:
-        #     flow_tensor = self.transform(flow_tensor)
-
-
+        # Select a 2000 random dots (without replacement)
+        num_columns = 2000
+        random_indices = torch.randperm(flow_tensor.size(1))[:num_columns]
+        flow_tensor = flow_tensor[:, random_indices]
 
         return flow_tensor, transrot_xyz
 
 def extract_target_response_from_filename(input_string: str):
     # Use regular expression to find the part between brackets
-    match = re.search(r"\[([-+]\d+\.\d+(_[-+]?\d+\.\d+)*)\]", input_string)
+    match = re.findall(r"[+-]?\d+(?=,|\])", input_string)
 
     if match:
-        # Extract the matched string
-        extracted_string = match.group(1)
-        # Split the string by underscores and convert to floats
-        floats = [float(x) for x in extracted_string.split('_')]
-
-        if len(floats) == 6:
+        if len(match) == 6:
             # Create a PyTorch tensor from the floats
+            floats = [float(num) for num in match]
             trans_rot_xyz = torch.tensor(floats, dtype=torch.float32)
             return trans_rot_xyz
         else:
