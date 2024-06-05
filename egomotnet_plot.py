@@ -112,7 +112,7 @@ def plot_progress(log, initialize=False):
     # Plot the new data
     plt.cla()
     figures['loss_ax'].set_xlabel('Epoch')  # Set x-axis label
-    figures['loss_ax'].set_ylabel('Mean loss per movie')  # Set y-axis label
+    figures['loss_ax'].set_ylabel('Mean loss per flow field')  # Set y-axis label
     figures['loss_ax'].set_title('Loss vs. Epochs')  # Set title
     figures['loss_ax'].grid(True)  # Enable grid
     figures['loss_ax'].semilogy(log['epoch'], log['val_loss'], marker='o', linestyle='-', color='violet', label='validation')

@@ -173,23 +173,28 @@ def computer_sleep(state: str=None):
         raise Exception('I implemented computer_sleep only for Windows so far')
 
 
-def print_progress_bar(current, maxval, prefix='', suffix='', decimals=1, length=30, fill='▓'):
+current_percent = dict()
+def print_progress_bar(new_percent, prefix='', suffix='', decimals=0, length=50, fill='+', back='-', id_key='progbar1'):
     """
     Call in a loop to create terminal progress bar.
     @params:
-        current     - Required  : current value (float)
-        maxval      - Required  : maximum value (float)
+        new_percent - Required  : current value (float)
         prefix      - Optional  : prefix string (Str)
         suffix      - Optional  : suffix string (Str)
         decimals    - Optional  : positive number of decimals in percent complete (Int)
         length      - Optional  : character length of bar (Int)
         fill        - Optional  : bar fill character (Str)
+        back        - Optional  : bar background character (Str)
     """
     #█▓░
-    percent = ("{0:." + str(decimals) + "f}").format(100 * (current / float(maxval)))
-    filled_length = int(length * current // maxval)
-    bar = fill * filled_length + '░' * (length - filled_length)
-    sys.stdout.write(f'\r{prefix} {bar} {percent}% {suffix}')
-    sys.stdout.flush()
-    if current/maxval >= 1.0:
-        print()
+    global current_percent
+    if new_percent == 0 or new_percent > current_percent[id_key] :
+        current_percent[id_key] = new_percent
+        percent_string = ("{0:." + str(decimals) + "f}").format(new_percent)
+        filled_length = int(min(length, length * new_percent/100))
+        bar = fill * filled_length + back * (length - filled_length)
+        sys.stdout.write(f'\r{prefix} {bar} {percent_string}% {suffix}')
+        sys.stdout.flush()
+        if new_percent >= 100.0:
+            del current_percent[id_key]
+            print()

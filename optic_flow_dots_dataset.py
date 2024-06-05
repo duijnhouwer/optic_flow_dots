@@ -11,6 +11,13 @@ from torch.utils.data import Dataset, DataLoader
 import re
 
 
+try:
+    from line_profiler import LineProfiler
+    profile = LineProfiler()
+except ImportError:
+    def profile(func):
+        return func
+
 # class SampleTransformer:
 #     def __init__(self, params):
 #         # Initialize any parameters needed for the transformation
@@ -35,22 +42,33 @@ class OpticFlowDotsDataset(Dataset):
     def __len__(self):
         return len(self.file_list)
 
+    @profile
     def __getitem__(self, idx):
+        if idx<0 or idx >= len(self.file_list):
+            print(f"Index {idx} is out of range for dataset of length {len(self.data)}")
+            raise IndexError("Index out of range")
         file_name = self.file_list[idx]
         file_path = os.path.join(self.folder_path, file_name)
 
         # Extract the translation and rotation parameters from the filename
-        transrot_xyz = extract_target_response_from_filename(file_name)
+        transrot_ruf = extract_target_response_from_filename(file_name)
+
+        ## For now ignore the rotation, heading onlu
+        #transrot_ruf = transrot_ruf[0:3]
 
         # Load the optic flow dots tensor from the file
-        flow_tensor = torch.load(file_path)
+        flow_tensor_4xN = torch.load(file_path)
+        #flow_tensor_4xN.requires_grad = True
 
-        # Select a 2000 random dots (without replacement)
+        # Select 2000 random dots (without replacement)
         num_columns = 2000
-        random_indices = torch.randperm(flow_tensor.size(1))[:num_columns]
-        flow_tensor = flow_tensor[:, random_indices]
+        random_indices = torch.randperm(flow_tensor_4xN.size(1))[:num_columns]
+        flow_tensor_4xN = flow_tensor_4xN[:, random_indices]
 
-        return flow_tensor, transrot_xyz
+        # Turn from 4xN matrix to 1x4*N matrix
+        flow_tensor_1x4N = flow_tensor_4xN.view(1, -1)  # Flatten for fully connected layer
+
+        return flow_tensor_1x4N, transrot_ruf
 
 def extract_target_response_from_filename(input_string: str):
     # Use regular expression to find the part between brackets
@@ -61,6 +79,7 @@ def extract_target_response_from_filename(input_string: str):
             # Create a PyTorch tensor from the floats
             floats = [float(num) for num in match]
             trans_rot_xyz = torch.tensor(floats, dtype=torch.float32)
+            trans_rot_xyz /= 1e9 # convert from pico to milli units
             return trans_rot_xyz
         else:
             raise ValueError("The input string does not contain 6 floats.")
